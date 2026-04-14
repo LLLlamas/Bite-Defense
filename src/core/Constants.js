@@ -1,9 +1,18 @@
 export const GRID_SIZE = 30;
-export const TILE_WIDTH = 64;
-export const TILE_HEIGHT = 32;
+export const TILE_SIZE = 32;
+
+// Keep these for backwards compat with any remaining references
+export const TILE_WIDTH = TILE_SIZE;
+export const TILE_HEIGHT = TILE_SIZE;
 
 export const STARTING_RESOURCES = { water: 200, milk: 200, dogCoins: 5 };
 export const BUILDER_SLOTS = 2;
+
+// Storage caps per HQ level (index = level - 1)
+export const STORAGE_CAPS = [500, 1200, 2500, 5000, 10000, 18000, 30000, 50000, 80000, 120000];
+
+// XP required per player level (index = level - 1)
+export const XP_PER_LEVEL = [100, 250, 500, 1000, 2000, 4000, 7500, 12000, 20000, 35000];
 
 // Difficulty multipliers for wave selection (1-5 stars)
 export const DIFFICULTY = {
@@ -21,20 +30,22 @@ export const PHASE = {
   BATTLE: 'BATTLE',
 };
 
-// Storage caps per HQ level (index = level - 1)
-export const STORAGE_CAPS = [500, 1200, 2500, 5000, 10000, 18000, 30000, 50000, 80000, 120000];
-
-// XP required per player level (index = level - 1)
-export const XP_PER_LEVEL = [100, 250, 500, 1000, 2000, 4000, 7500, 12000, 20000, 35000];
-
-// Colors
+// Colors — CoC-inspired palette
 export const COLORS = {
-  GRID_LIGHT: '#3a5c3a',
-  GRID_DARK: '#2d4a2d',
-  GRID_HOVER: 'rgba(255, 255, 255, 0.2)',
-  GRID_VALID: 'rgba(0, 255, 0, 0.3)',
-  GRID_INVALID: 'rgba(255, 0, 0, 0.3)',
-  BACKGROUND: '#1a1a2e',
+  // Grass tones
+  GRASS_1: '#4a7c34',
+  GRASS_2: '#528a38',
+  GRASS_3: '#4e8235',
+  GRASS_4: '#458030',
+  GRID_LINE: '#3a6828',
+
+  // UI
+  GRID_HOVER: 'rgba(255, 255, 255, 0.25)',
+  GRID_VALID: 'rgba(0, 200, 0, 0.35)',
+  GRID_INVALID: 'rgba(220, 0, 0, 0.35)',
+  BACKGROUND: '#2d5a1e',
+
+  // HP bars
   HP_BAR_BG: '#333',
   HP_BAR_ALLY: '#27ae60',
   HP_BAR_ENEMY: '#e74c3c',

@@ -1,31 +1,37 @@
-import { TILE_WIDTH, TILE_HEIGHT } from '../core/Constants.js';
+import { TILE_SIZE } from '../core/Constants.js';
+
+// Simple 2D grid math (replaces isometric projection)
 
 export function cartToIso(col, row) {
   return {
-    x: (col - row) * (TILE_WIDTH / 2),
-    y: (col + row) * (TILE_HEIGHT / 2),
+    x: col * TILE_SIZE,
+    y: row * TILE_SIZE,
   };
 }
 
-export function isoToCart(isoX, isoY) {
+export function isoToCart(worldX, worldY) {
   return {
-    col: (isoX / (TILE_WIDTH / 2) + isoY / (TILE_HEIGHT / 2)) / 2,
-    row: (isoY / (TILE_HEIGHT / 2) - isoX / (TILE_WIDTH / 2)) / 2,
+    col: worldX / TILE_SIZE,
+    row: worldY / TILE_SIZE,
   };
 }
 
 export function tileToScreen(col, row, camera) {
-  const iso = cartToIso(col, row);
+  const wx = col * TILE_SIZE;
+  const wy = row * TILE_SIZE;
   return {
-    x: (iso.x - camera.x) * camera.zoom + camera.screenW / 2,
-    y: (iso.y - camera.y) * camera.zoom + camera.screenH / 2,
+    x: (wx - camera.x) * camera.zoom + camera.screenW / 2,
+    y: (wy - camera.y) * camera.zoom + camera.screenH / 2,
   };
 }
 
 export function screenToTile(screenX, screenY, camera) {
   const worldX = (screenX - camera.screenW / 2) / camera.zoom + camera.x;
   const worldY = (screenY - camera.screenH / 2) / camera.zoom + camera.y;
-  return isoToCart(worldX, worldY);
+  return {
+    col: worldX / TILE_SIZE,
+    row: worldY / TILE_SIZE,
+  };
 }
 
 export function worldToScreen(wx, wy, camera) {

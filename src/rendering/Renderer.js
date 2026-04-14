@@ -1,4 +1,4 @@
-import { COLORS, TILE_WIDTH, TILE_HEIGHT } from '../core/Constants.js';
+import { COLORS, TILE_SIZE } from '../core/Constants.js';
 import { tileToScreen } from '../world/IsoMath.js';
 import { TileRenderer } from './TileRenderer.js';
 import { BuildingRenderer } from './BuildingRenderer.js';
@@ -46,31 +46,39 @@ export class Renderer {
     if (!rallyPoints || rallyPoints.size === 0) return;
     const ctx = this.ctx;
     const zoom = this.camera.zoom;
+    const ts = TILE_SIZE * zoom;
 
     for (const [, point] of rallyPoints) {
       const screen = tileToScreen(point.col, point.row, this.camera);
+      const cx = screen.x + ts * 0.5;
+      const cy = screen.y + ts * 0.5;
+
+      // Ground marker
+      ctx.fillStyle = 'rgba(230, 126, 34, 0.25)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, ts * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#e67e22';
+      ctx.lineWidth = 1.5 * zoom;
+      ctx.setLineDash([3 * zoom, 3 * zoom]);
+      ctx.stroke();
+      ctx.setLineDash([]);
 
       // Flag pole
-      ctx.strokeStyle = '#e67e22';
+      ctx.strokeStyle = '#8B6914';
       ctx.lineWidth = 2 * zoom;
       ctx.beginPath();
-      ctx.moveTo(screen.x, screen.y);
-      ctx.lineTo(screen.x, screen.y - 20 * zoom);
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx, cy - 14 * zoom);
       ctx.stroke();
 
-      // Flag triangle
+      // Flag
       ctx.fillStyle = '#e67e22';
       ctx.beginPath();
-      ctx.moveTo(screen.x, screen.y - 20 * zoom);
-      ctx.lineTo(screen.x + 10 * zoom, screen.y - 15 * zoom);
-      ctx.lineTo(screen.x, screen.y - 10 * zoom);
+      ctx.moveTo(cx, cy - 14 * zoom);
+      ctx.lineTo(cx + 8 * zoom, cy - 10 * zoom);
+      ctx.lineTo(cx, cy - 6 * zoom);
       ctx.closePath();
-      ctx.fill();
-
-      // Base circle
-      ctx.fillStyle = 'rgba(230, 126, 34, 0.3)';
-      ctx.beginPath();
-      ctx.ellipse(screen.x, screen.y, 6 * zoom, 3 * zoom, 0, 0, Math.PI * 2);
       ctx.fill();
     }
   }
