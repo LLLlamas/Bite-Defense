@@ -98,6 +98,13 @@ export class UIManager {
     this.bpIncoming = document.getElementById('bp-incoming');
     this.speedControl = document.getElementById('speed-control');
 
+    // Info cards
+    this.infoToggleBtn = document.getElementById('info-toggle-btn');
+    this.introCard = document.getElementById('intro-card');
+    this.introDismiss = document.getElementById('intro-dismiss');
+    this.prebattleCard = document.getElementById('prebattle-card');
+    this.prebattleDismiss = document.getElementById('prebattle-dismiss');
+
     // Placement confirm tray
     this.placementConfirm = document.getElementById('placement-confirm');
     this.pcInfo = document.getElementById('pc-info');
@@ -119,6 +126,24 @@ export class UIManager {
 
     // Placement confirm tray — cancel
     this.pcCancelBtn.addEventListener('click', () => EventBus.emit('placement:doCancel'));
+
+    // Info cards
+    this.infoToggleBtn?.addEventListener('click', () => this._showIntroCard());
+    this.introDismiss?.addEventListener('click', () => this.introCard?.classList.add('hidden'));
+    this.prebattleDismiss?.addEventListener('click', () => this.prebattleCard?.classList.add('hidden'));
+    // Click outside card dismisses
+    this.introCard?.addEventListener('click', (e) => {
+      if (e.target === this.introCard) this.introCard.classList.add('hidden');
+    });
+    this.prebattleCard?.addEventListener('click', (e) => {
+      if (e.target === this.prebattleCard) this.prebattleCard.classList.add('hidden');
+    });
+
+    // Show intro on first visit
+    if (!localStorage.getItem('biteDefense_seenIntro')) {
+      this._showIntroCard();
+      localStorage.setItem('biteDefense_seenIntro', '1');
+    }
 
     // Speed control buttons
     document.querySelectorAll('.speed-btn').forEach(btn => {
@@ -193,6 +218,11 @@ export class UIManager {
       // Speed control visible during pre-battle and battle
       this.speedControl?.classList.remove('hidden');
       this._updateIncomingCount();
+      // First-time pre-battle tip
+      if (!localStorage.getItem('biteDefense_seenPrebattle')) {
+        this._showPrebattleCard();
+        localStorage.setItem('biteDefense_seenPrebattle', '1');
+      }
     });
 
     EventBus.on('wave:started', ({ wave }) => {
@@ -779,6 +809,14 @@ export class UIManager {
 
   _goHome() {
     this.waveSystem.goHome();
+  }
+
+  _showIntroCard() {
+    this.introCard?.classList.remove('hidden');
+  }
+
+  _showPrebattleCard() {
+    this.prebattleCard?.classList.remove('hidden');
   }
 
   _deploy() {

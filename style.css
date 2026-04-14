@@ -664,6 +664,73 @@ body {
 #store-toggle-btn:hover { background: linear-gradient(180deg, #d99af0 0%, #8e44ad 100%); }
 #store-toggle-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,0.4); }
 
+#info-toggle-btn {
+  background: linear-gradient(180deg, #5ec8e4 0%, #2b7aa0 100%);
+  color: #fff;
+  border: 2px solid rgba(0,0,0,0.3);
+  padding: 10px 18px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: 1.2px;
+  border-radius: 10px;
+  cursor: pointer;
+  text-shadow: 2px 2px 0 rgba(0,0,0,0.4);
+  box-shadow: 0 4px 0 rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+  margin-right: 8px;
+}
+#info-toggle-btn:hover { background: linear-gradient(180deg, #72d9f0 0%, #3690b8 100%); }
+#info-toggle-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,0.4); }
+
+/* Info cards (intro + pre-battle) */
+.info-card {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 22, 44, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  padding: 20px;
+}
+.info-card.hidden { display: none; }
+.info-card-content {
+  background: var(--panel-bg);
+  border: 3px solid var(--gold);
+  border-radius: 14px;
+  padding: 22px 26px;
+  max-width: 480px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  color: #e8f1ff;
+  font-family: var(--font-ui);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+.info-card-content h2 {
+  font-family: var(--font-display);
+  letter-spacing: 1.5px;
+  color: var(--gold);
+  margin: 0 0 10px;
+  font-size: 24px;
+}
+.info-card-content h3 {
+  font-family: var(--font-display);
+  letter-spacing: 1px;
+  color: #ffe199;
+  margin: 14px 0 6px;
+  font-size: 17px;
+}
+.info-card-content p { margin: 6px 0; line-height: 1.4; }
+.info-card-content ul { margin: 6px 0 6px 18px; padding: 0; }
+.info-card-content li { margin: 4px 0; line-height: 1.35; }
+.info-card-content b { color: #fff2c2; }
+.info-card-content .btn {
+  display: block;
+  margin: 16px auto 0;
+  padding: 10px 26px;
+  font-size: 17px;
+}
+
 /* Pre-battle Controls */
 #pre-battle-controls {
   display: flex;
