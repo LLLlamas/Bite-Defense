@@ -1,0 +1,84 @@
+# Bite Defense — TestFlight automation.
+# Run via: `bundle exec fastlane beta` (locally on macOS) or via the
+# `iOS TestFlight` GitHub Actions workflow.
+
+default_platform(:ios)
+
+PROJECT_NAME = "BiteDefense"
+SCHEME       = "BiteDefense"
+BUNDLE_ID    = "com.bitedefense.game"
+
+platform :ios do
+  before_all do
+    setup_ci if is_ci
+
+    # App Store Connect API key — supplied by GHA secrets when on CI.
+    app_store_connect_api_key(
+      key_id:      ENV["APPSTORE_API_KEY_ID"],
+      issuer_id:   ENV["APPSTORE_API_ISSUER_ID"],
+      key_content: ENV["APPSTORE_API_KEY_P8"],
+      duration:    1200,
+      in_house:    false
+    )
+  end
+
+  desc "Generate Xcode project, fetch certs, build a Release IPA, upload to TestFlight."
+  lane :beta do
+    # 1. Regenerate the Xcode project from project.yml.
+    sh("cd .. && xcodegen generate")
+
+    # 2. Pull (or create on first run) the App Store distribution cert + profile.
+    #    `readonly: false` lets the first run *create* the cert in the certs repo;
+    #    flip to true after the repo is populated for safer re-runs.
+    match(
+      type:                       "appstore",
+      app_identifier:             [BUNDLE_ID],
+      readonly:                   ENV["MATCH_READONLY"] == "true",
+      git_basic_authorization:    ENV["MATCH_GIT_BASIC_AUTHORIZATION"],
+      api_key_path:               nil # use the cached app_store_connect_api_key from before_all
+    )
+
+    # 3. Bump build number based on the latest TestFlight build for this version.
+    version = "0.1.0"
+    next_build = (begin
+      latest_testflight_build_number(
+        version: version,
+        app_identifier: BUNDLE_ID,
+        initial_build_number: 0
+      )
+    rescue StandardError
+      0
+    end) + 1
+    UI.message("Using build number #{next_build} for version #{version}")
+
+    # 4. Build a signed Release IPA. `xcargs` injects the build number so we don't
+    #    need an in-repo plist mutation.
+    build_app(
+      project:           "#{PROJECT_NAME}.xcodeproj",
+      scheme:            SCHEME,
+      configuration:     "Release",
+      export_method:     "app-store",
+      output_directory:  "./build",
+      output_name:       "#{PROJECT_NAME}.ipa",
+      clean:             true,
+      include_bitcode:   false,
+      include_symbols:   true,
+      xcargs:            "CURRENT_PROJECT_VERSION=#{next_build}",
+      export_options: {
+        provisioningProfiles: {
+          BUNDLE_ID => "match AppStore #{BUNDLE_ID}"
+        }
+      }
+    )
+
+    # 5. Upload to TestFlight. Skip the wait-for-processing step so CI returns
+    #    quickly; Apple finishes processing async (~5–15 min) before it shows
+    #    up as installable in the TestFlight app.
+    pilot(
+      ipa:                                 "./build/#{PROJECT_NAME}.ipa",
+      skip_waiting_for_build_processing:   true,
+      skip_submission:                     true,
+      changelog:                           "Internal CI build #{next_build}"
+    )
+  end
+end
