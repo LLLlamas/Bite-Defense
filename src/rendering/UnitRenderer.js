@@ -14,7 +14,7 @@ export class UnitRenderer {
 
     if (troops) {
       for (const troop of troops) {
-        if (troop.state === 'DEAD') continue;
+        if (troop.state === 'DEAD' || troop.state === 'GARRISONED') continue;
         allUnits.push({ unit: troop, type: 'troop' });
       }
     }

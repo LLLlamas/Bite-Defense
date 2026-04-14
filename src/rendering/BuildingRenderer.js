@@ -2,6 +2,16 @@ import { TILE_SIZE } from '../core/Constants.js';
 import { tileToScreen } from '../world/IsoMath.js';
 import { BUILDINGS } from '../data/BuildingConfig.js';
 
+const BUILDING_EMOJI = {
+  DOG_HQ: '🏛️',
+  TRAINING_CAMP: '⚔️',
+  FORT: '🛡️',
+  WALL: '🧱',
+  WATER_WELL: '💧',
+  MILK_FARM: '🥛',
+  ARCHER_TOWER: '🏹',
+};
+
 export class BuildingRenderer {
   constructor(ctx, camera) {
     this.ctx = ctx;
@@ -80,6 +90,22 @@ export class BuildingRenderer {
       this._roundRect(ctx, screen.x + 1, screen.y + 1, w - 2, h - 2, 6 * zoom);
       ctx.stroke();
       ctx.setLineDash([]);
+    }
+
+    // Building icon overlay (the emoji shown in the store)
+    const emoji = BUILDING_EMOJI[building.configId];
+    if (emoji && !building.isBuilding) {
+      const iconSize = Math.max(14, Math.floor(Math.min(w, h) * 0.45));
+      ctx.font = `${iconSize}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const cx = screen.x + w / 2;
+      const cy = screen.y + h / 2;
+      // Subtle shadow so icon pops on any building color
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillText(emoji, cx + 1, cy + 2);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(emoji, cx, cy);
     }
 
     // Build progress bar

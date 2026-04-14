@@ -19,7 +19,28 @@ export class WaveSystem {
     this.state.phase = PHASE.PRE_BATTLE;
     // Pick a random corner for this wave (0=TL, 1=TR, 2=BL, 3=BR)
     this.state.waveCorner = Math.floor(Math.random() * 4);
+
+    // Deploy garrisoned troops — spread them out around their assigned fort
+    this._deployGarrisonedTroops();
+
     EventBus.emit('phase:preBattle', { corner: this.state.waveCorner });
+  }
+
+  _deployGarrisonedTroops() {
+    for (const troop of this.state.troops) {
+      if (troop.state !== 'GARRISONED') continue;
+      const fort = this.state.buildings.find(b => b.id === troop.fortId && !b.isBuilding);
+      const anchor = fort || this.state.buildings.find(b => b.configId === 'FORT' && !b.isBuilding);
+      if (anchor) {
+        const cfg = anchor.getConfig();
+        // Scatter around the fort entrance
+        troop.col = anchor.col + cfg.tileWidth / 2 + (Math.random() - 0.5) * 1.5;
+        troop.row = anchor.row + cfg.tileHeight + 0.5 + Math.random() * 0.8;
+      }
+      troop.state = 'IDLE';
+      troop.target = null;
+      troop.selected = false;
+    }
   }
 
   cancelPreBattle() {
@@ -134,27 +155,10 @@ export class WaveSystem {
     // Unlock next difficulty if the player beat the current max
     this.state.unlockNextDifficulty();
 
-    // Return surviving troops to their Fort
-    const forts = this.state.buildings.filter(b => b.configId === 'FORT' && !b.isBuilding);
-    for (const troop of this.state.troops) {
-      if (troop.state === 'DEAD') continue;
-      const fort = this._nearestFort(troop, forts);
-      if (fort) {
-        const cfg = fort.getConfig();
-        troop.moveTargetCol = fort.col + cfg.tileWidth / 2 + (Math.random() - 0.5);
-        troop.moveTargetRow = fort.row + cfg.tileHeight + 0.5 + Math.random() * 0.5;
-      } else {
-        // No fort - head back toward training camp
-        const camps = this.state.buildings.filter(b => b.configId === 'TRAINING_CAMP' && !b.isBuilding);
-        const camp = this._nearestFort(troop, camps);
-        if (camp) {
-          const cfg = camp.getConfig();
-          troop.moveTargetCol = camp.col + cfg.tileWidth / 2 + (Math.random() - 0.5);
-          troop.moveTargetRow = camp.row + cfg.tileHeight + 0.5 + Math.random() * 0.5;
-        }
-      }
-      troop.state = 'REPOSITIONING';
-    }
+    // Garrison all surviving troops — they return to their Fort and disappear from the map
+    this._garrisonTroops();
+    // Clear rally points so the player can set new ones next battle
+    this.state.rallyPoints.clear();
 
     EventBus.emit('wave:complete', {
       wave: this.state.currentWave,
@@ -163,6 +167,28 @@ export class WaveSystem {
     });
 
     this.waveData = null;
+  }
+
+  // Move all surviving troops to the GARRISONED state — they stay in fort but leave the battlefield.
+  _garrisonTroops() {
+    const forts = this.state.buildings.filter(b => b.configId === 'FORT' && !b.isBuilding);
+    const camps = this.state.buildings.filter(b => b.configId === 'TRAINING_CAMP' && !b.isBuilding);
+    for (const troop of this.state.troops) {
+      if (troop.state === 'DEAD') continue;
+      // Assign to nearest fort (or fall back to nearest camp)
+      const fort = this._nearestFort(troop, forts) || this._nearestFort(troop, camps);
+      if (fort) {
+        const cfg = fort.getConfig();
+        // Anchor at fort center (not visible anyway while GARRISONED)
+        troop.col = fort.col + cfg.tileWidth / 2;
+        troop.row = fort.row + cfg.tileHeight / 2;
+        troop.fortId = fort.id;
+      }
+      troop.state = 'GARRISONED';
+      troop.target = null;
+      troop.selected = false;
+    }
+    this.state.selectedTroop = null;
   }
 
   _nearestFort(troop, buildings) {
@@ -201,6 +227,10 @@ export class WaveSystem {
     this.state.waveActive = false;
     this.state.phase = PHASE.BUILDING;
     this.state.waveCorner = null;
+
+    // Clear rally points + garrison any remaining (usually none since failure means troops died)
+    this._garrisonTroops();
+    this.state.rallyPoints.clear();
 
     EventBus.emit('wave:failed', {
       wave: this.state.currentWave,

@@ -60,7 +60,7 @@ export class CombatSystem {
   // Stationary troops - only attack enemies within range, never chase
   _updateTroops(dt) {
     for (const troop of this.state.troops) {
-      if (troop.state === 'DEAD') continue;
+      if (troop.state === 'DEAD' || troop.state === 'GARRISONED') continue;
 
       // Find nearest enemy within range
       let nearest = null;
@@ -110,7 +110,7 @@ export class CombatSystem {
       let nearestDist = Infinity;
 
       for (const troop of this.state.troops) {
-        if (troop.state === 'DEAD') continue;
+        if (troop.state === 'DEAD' || troop.state === 'GARRISONED') continue;
         const dist = enemy.distanceTo(troop.col, troop.row);
         if (dist < nearestDist) {
           nearest = troop;

@@ -28,9 +28,9 @@ export class TroopPlacementSystem {
 
     this.state.rallyPoints.set(this.settingRallyFor, { col, row });
 
-    // Move all troops from this camp to the rally point
+    // Move all troops from this camp to the rally point (skip garrisoned ones — they deploy at wave start)
     for (const troop of this.state.troops) {
-      if (troop.campId === this.settingRallyFor && troop.state !== 'DEAD') {
+      if (troop.campId === this.settingRallyFor && troop.state !== 'DEAD' && troop.state !== 'GARRISONED') {
         troop.moveTargetCol = col;
         troop.moveTargetRow = row;
         troop.state = 'REPOSITIONING';
@@ -48,7 +48,7 @@ export class TroopPlacementSystem {
     let closestDist = 1.5; // max click distance in tiles
 
     for (const troop of this.state.troops) {
-      if (troop.state === 'DEAD') continue;
+      if (troop.state === 'DEAD' || troop.state === 'GARRISONED') continue;
       const dist = Math.hypot(troop.col - col, troop.row - row);
       if (dist < closestDist) {
         closest = troop;
