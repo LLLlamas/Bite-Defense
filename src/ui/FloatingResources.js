@@ -43,7 +43,7 @@ export function spawnFloatingResource(amount, resource, sourceX, sourceY, isGain
   setTimeout(() => {
     if (el.parentNode) el.parentNode.removeChild(el);
     activeFloaters.delete(el);
-  }, 850);
+  }, 600);
 }
 
 // Convert world tile (col, row) → screen pixel (x, y) using camera + canvas

@@ -49,6 +49,19 @@ export class WaveSystem {
     EventBus.emit('phase:building', {});
   }
 
+  // Exit the battlefield: garrison all surviving troops, clear rally points,
+  // reset streak counter, and return to BUILDING phase.
+  goHome() {
+    this.state.waveStreak = 0;
+    this._garrisonTroops();
+    this.state.rallyPoints.clear();
+    this.state.phase = PHASE.BUILDING;
+    this.state.waveCorner = null;
+    this.state.waveActive = false;
+    EventBus.emit('phase:building', {});
+    EventBus.emit('wave:goHome', {});
+  }
+
   deploy() {
     if (this.state.phase !== PHASE.PRE_BATTLE) return;
     this.state.phase = PHASE.BATTLE;
@@ -155,6 +168,9 @@ export class WaveSystem {
     // Unlock next difficulty if the player beat the current max
     this.state.unlockNextDifficulty();
 
+    // Streak grows on each consecutive win
+    this.state.waveStreak++;
+
     // Garrison all surviving troops — they return to their Fort and disappear from the map
     this._garrisonTroops();
     // Clear rally points so the player can set new ones next battle
@@ -227,6 +243,7 @@ export class WaveSystem {
     this.state.waveActive = false;
     this.state.phase = PHASE.BUILDING;
     this.state.waveCorner = null;
+    this.state.waveStreak = 0;
 
     // Clear rally points + garrison any remaining (usually none since failure means troops died)
     this._garrisonTroops();

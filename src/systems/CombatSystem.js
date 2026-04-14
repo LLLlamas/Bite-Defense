@@ -207,7 +207,6 @@ export class CombatSystem {
         this.state.addResource('water', enemy.reward.water);
         this.state.addResource('milk', enemy.reward.milk);
         this.state.addXP(enemy.xp);
-        this.state.addEffect('reward', enemy.col, enemy.row, `+${enemy.reward.water}W`);
         this.state.enemies.splice(i, 1);
       }
     }

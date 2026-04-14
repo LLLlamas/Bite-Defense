@@ -108,8 +108,8 @@ body {
   text-shadow: 2px 2px 0 rgba(0,0,0,0.7), 0 0 6px rgba(0,0,0,0.6);
   transform: translate(0, 0) scale(1);
   opacity: 1;
-  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1),
-              opacity 0.8s cubic-bezier(0.5, 0, 1, 1);
+  transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.55s cubic-bezier(0.5, 0, 1, 1);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -532,6 +532,31 @@ body {
   transform: none;
   text-shadow: none;
 }
+
+.wave-btn-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+#go-home-btn {
+  background: linear-gradient(180deg, #5a7fbf 0%, #34538a 100%);
+  color: #fff;
+  border: 2px solid rgba(0,0,0,0.3);
+  padding: 10px 22px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: 1.2px;
+  border-radius: 10px;
+  cursor: pointer;
+  text-shadow: 2px 2px 0 rgba(0,0,0,0.4);
+  box-shadow: 0 4px 0 rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+  transition: all 0.15s;
+}
+#go-home-btn:hover { background: linear-gradient(180deg, #6b91d0 0%, #3d6099 100%); transform: translateY(-1px); }
+#go-home-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,0.4); }
 
 #wave-status {
   font-family: var(--font-display);

@@ -12,6 +12,7 @@ export class GameState {
     this.playerLevel = 1;
     this.playerXP = 0;
     this.currentWave = 0;
+    this.waveStreak = 0; // consecutive wins since last fail or go-home
     this.waveActive = false;
     this.selectedDifficulty = 1; // starts at 1, unlock higher by beating waves
     this.maxDifficultyUnlocked = 1;
@@ -138,7 +139,7 @@ export class GameState {
       row,
       value,
       progress: 0,
-      duration: 1.0,
+      duration: 0.5,
     });
   }
 

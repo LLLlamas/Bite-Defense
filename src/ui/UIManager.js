@@ -78,6 +78,7 @@ export class UIManager {
     this.trainingClose = document.getElementById('training-close');
 
     this.waveStartBtn = document.getElementById('wave-start-btn');
+    this.goHomeBtn = document.getElementById('go-home-btn');
     this.waveStatus = document.getElementById('wave-status');
     this.difficultySelector = document.getElementById('difficulty-selector');
     this.difficultyDesc = document.getElementById('difficulty-desc');
@@ -111,6 +112,7 @@ export class UIManager {
     this.trainingClose.addEventListener('click', () => this.closeTraining());
 
     this.waveStartBtn.addEventListener('click', () => this._enterPreBattle());
+    this.goHomeBtn?.addEventListener('click', () => this._goHome());
     this.deployBtn.addEventListener('click', () => this._deploy());
     this.cancelDeployBtn.addEventListener('click', () => this._cancelPreBattle());
     this.rewardDismiss.addEventListener('click', () => this._dismissReward());
@@ -207,7 +209,8 @@ export class UIManager {
 
     EventBus.on('wave:complete', ({ wave, bonus }) => {
       this.waveStartBtn.classList.remove('hidden');
-      this.waveStartBtn.textContent = `Start Wave ${wave + 1}`;
+      this.waveStartBtn.textContent = `Continue (Streak ${this.state.waveStreak})`;
+      this.goHomeBtn?.classList.remove('hidden');
       this.difficultySelector.classList.remove('hidden');
       this.waveStatus.classList.add('hidden');
       this.speedControl?.classList.add('hidden');
@@ -220,12 +223,12 @@ export class UIManager {
       this._updateIncomingCount();
       // Animate gained resources flying to their HUD slots
       if (bonus) this._animateRewardGain(bonus);
-      if (bonus) setTimeout(() => this._showRewardPopup(wave, bonus), 1200);
     });
 
     EventBus.on('wave:failed', ({ wave, waterStolen, milkStolen, theftPct }) => {
       this.waveStartBtn.classList.remove('hidden');
-      this.waveStartBtn.textContent = `Retry Wave ${wave}`;
+      this.waveStartBtn.textContent = `Retry`;
+      this.goHomeBtn?.classList.remove('hidden');
       this.difficultySelector.classList.remove('hidden');
       this.preBattleControls.classList.add('hidden');
       this.speedControl?.classList.add('hidden');
@@ -233,12 +236,23 @@ export class UIManager {
       const stolenMsg = (waterStolen || milkStolen)
         ? `Cats stole ${waterStolen} Water, ${milkStolen} Milk (${theftPct}%)`
         : `Your troops fell.`;
-      this.waveStatus.textContent = `Wave ${wave} failed! ${stolenMsg}`;
+      this.waveStatus.textContent = `Defeated! ${stolenMsg}`;
       this.waveStatus.classList.remove('hidden');
       this.state.currentWave--;
       this.updateHUD();
       this._updateIncomingCount();
       setTimeout(() => { this.waveStatus.classList.add('hidden'); }, 5000);
+    });
+
+    EventBus.on('wave:goHome', () => {
+      this.waveStartBtn.classList.remove('hidden');
+      this.waveStartBtn.textContent = 'Start Wave';
+      this.goHomeBtn?.classList.add('hidden');
+      this.difficultySelector.classList.remove('hidden');
+      this.preBattleControls.classList.add('hidden');
+      this.waveStatus.classList.add('hidden');
+      this.updateHUD();
+      this._updateIncomingCount();
     });
 
     EventBus.on('player:levelup', () => {
@@ -293,11 +307,23 @@ export class UIManager {
     this.hudXP.textContent = `${Math.floor(this._displayed.xp)}/${xpNeeded}`;
     this.xpBarFill.style.width = `${xpPct}%`;
 
-    this.hudWave.textContent = `Wave: ${this.state.currentWave}`;
+    const streak = this.state.waveStreak || 0;
+    if (streak > 0) {
+      this.hudWave.textContent = `🔥 Streak ${streak}`;
+      this.hudWave.style.display = '';
+    } else {
+      this.hudWave.style.display = 'none';
+    }
 
-    // Bottom panel info
+    // Bottom panel info — hide Wave row when not streaking
     if (this.bpWave) {
-      this.bpWave.textContent = (this.state.currentWave + 1);
+      const row = this.bpWave.closest('.bp-info-row');
+      if (streak > 0) {
+        this.bpWave.textContent = streak;
+        if (row) row.style.display = '';
+      } else {
+        if (row) row.style.display = 'none';
+      }
     }
     if (this.bpDifficulty) {
       const d = DIFFICULTY[this.state.selectedDifficulty];
@@ -746,8 +772,13 @@ export class UIManager {
     if (this.state.waveActive) return;
     this.waveSystem.enterPreBattle();
     this.waveStartBtn.classList.add('hidden');
+    this.goHomeBtn?.classList.add('hidden');
     this.difficultySelector.classList.add('hidden');
     this.preBattleControls.classList.remove('hidden');
+  }
+
+  _goHome() {
+    this.waveSystem.goHome();
   }
 
   _deploy() {
