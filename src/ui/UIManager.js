@@ -889,6 +889,12 @@ export class UIManager {
 
   _enterPreBattle() {
     if (this.state.waveActive) return;
+    // Block pre-battle entirely if there are no troops — show the guidance card instead
+    const hasTroops = this.state.troops.some(t => t.state !== 'DEAD');
+    if (!hasTroops) {
+      this._showNoTroopsCard();
+      return;
+    }
     this.waveSystem.enterPreBattle();
     this.waveStartBtn.classList.add('hidden');
     this.goHomeBtn?.classList.add('hidden');
