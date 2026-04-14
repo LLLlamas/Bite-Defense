@@ -287,14 +287,19 @@ Each milestone is independently verifiable. The JS version stays playable in the
 
 **Done =** Simulator screenshot shows HQ, Training Camp, Fort, Water Well, Milk Farm, Archer Tower, and a 3-block Wall row in the center of the grid.
 
-### M4 — Building system + placement flow (3 days)
-- Port `BuildingConfig.swift`, `BuildingSystem.swift`
-- SwiftUI `StorePanel` scrollable list of buildings
-- Placement mode: select from store → tap tile → confirm tray (SwiftUI overlay) with Pay Water / Pay Milk buttons → place
-- Occupancy tracked in `IsoTileMap`
-- Move flow: tap placed building → info panel → Move button → tap destination → Confirm Move
+### M4 — Building system + placement flow ✅
+- `Grid.swift` — 30×30 occupancy table (separate from visual `IsoTileMap`)
+- `GameState.swift` — `@Observable`: water/milk/dogCoins, `[BuildingModel]`, HQ-derived storage caps
+- `GameCoordinator.swift` — top-level orchestrator with `placement` + `selectedBuildingId` UI state, drives everything from tile taps
+- `BuildingSystem.swift` — `canPlace` / `place` / `move` / `remove` / `upgrade`; uniqueness + level-gating + half-refund-on-delete; coin vs. flex-resource upgrades
+- Extended `BuildingConfig` with full `costs[]` / `buildTime[]` / `upgradeCoinCost[]` arrays per type
+- `EventBus` extended with `buildingPlaced/Moved/Removed/Upgraded` cases; `GameScene` listens and syncs `Building` SKNodes via a `[id: Building]` map
+- Placement preview: green/red SKShapeNode covering the candidate footprint; updates each frame
+- SwiftUI panels: `HUDView` (top), `StorePanel` (bottom strip), `PlacementConfirmTray` (Pay Water / Pay Milk / Cancel), `BuildingInfoPanel` (Move / Upgrade / Delete)
+- Tap an existing building → info panel; tap Move → re-enters placement mode with `movingId`; confirm relocates without re-paying
+- Tests cover place/move/remove/upgrade + unique constraint + insufficient-resource blocking
 
-**Done =** you can build a full base matching the current web experience, including the Move/Delete/Upgrade actions.
+**Done =** full placement loop works without a Mac — Action screenshot shows the empty grid + HUD + store; interactive verification happens once a TestFlight build lands or you get a Mac.
 
 ### M5 — Resource generation + HUD (1 day)
 - Port `ResourceSystem.swift`

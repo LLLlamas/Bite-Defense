@@ -2,6 +2,7 @@ import SwiftUI
 import SpriteKit
 
 struct ContentView: View {
+    @State private var coordinator = GameCoordinator()
     @State private var scene: GameScene = {
         let scene = GameScene(size: UIScreen.main.bounds.size)
         scene.scaleMode = .resizeFill
@@ -9,18 +10,27 @@ struct ContentView: View {
     }()
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             SpriteView(scene: scene, options: [.ignoresSiblingOrder])
                 .ignoresSafeArea()
 
-            VStack {
+            VStack(spacing: 0) {
+                HUDView(coordinator: coordinator)
                 Spacer()
-                Text("Bite Defense — M1 skeleton")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.6))
-                    .padding(.bottom, 12)
+
+                // Mid-screen overlays — only one at a time.
+                if coordinator.placement != nil {
+                    PlacementConfirmTray(coordinator: coordinator)
+                        .padding(.bottom, 10)
+                } else if coordinator.selectedBuildingId != nil {
+                    BuildingInfoPanel(coordinator: coordinator)
+                        .padding(.bottom, 10)
+                }
+
+                StorePanel(coordinator: coordinator)
             }
         }
+        .onAppear { scene.coordinator = coordinator }
     }
 }
 
