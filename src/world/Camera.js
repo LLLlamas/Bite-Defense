@@ -12,11 +12,28 @@ export class Camera {
     this.screenH = canvas.height;
     this.canvas = canvas;
 
-    // World bounds (in world coordinates)
-    this.worldMinX = -2 * TILE_SIZE;
-    this.worldMaxX = (GRID_SIZE + 2) * TILE_SIZE;
-    this.worldMinY = -2 * TILE_SIZE;
-    this.worldMaxY = (GRID_SIZE + 2) * TILE_SIZE;
+  }
+
+  // Dynamic bounds so camera.x/y (which is center) can never show off-map area.
+  _getClampBounds() {
+    // Half the visible world area
+    const halfW = (this.screenW / this.zoom) / 2;
+    const halfH = (this.screenH / this.zoom) / 2;
+    const mapW = GRID_SIZE * TILE_SIZE;
+    const mapH = GRID_SIZE * TILE_SIZE;
+
+    // If viewport bigger than map, lock center at map center
+    const minX = Math.max(halfW, 0);
+    const maxX = Math.min(mapW - halfW, mapW);
+    const minY = Math.max(halfH, 0);
+    const maxY = Math.min(mapH - halfH, mapH);
+
+    return {
+      minX: minX <= maxX ? minX : mapW / 2,
+      maxX: minX <= maxX ? maxX : mapW / 2,
+      minY: minY <= maxY ? minY : mapH / 2,
+      maxY: minY <= maxY ? maxY : mapH / 2,
+    };
   }
 
   pan(dx, dy) {
@@ -57,8 +74,9 @@ export class Camera {
   }
 
   _clampPosition() {
-    this.x = Math.max(this.worldMinX, Math.min(this.worldMaxX, this.x));
-    this.y = Math.max(this.worldMinY, Math.min(this.worldMaxY, this.y));
+    const b = this._getClampBounds();
+    this.x = Math.max(b.minX, Math.min(b.maxX, this.x));
+    this.y = Math.max(b.minY, Math.min(b.maxY, this.y));
   }
 
   resize() {

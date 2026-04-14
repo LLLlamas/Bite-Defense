@@ -56,8 +56,18 @@ export class TileRenderer {
       }
     }
 
-    if (placementMode && hoverTile) {
-      this._drawPlacementPreview(hoverTile, placementMode, ts);
+    if (placementMode) {
+      // If candidate locked, draw the locked candidate highlighted
+      if (placementMode.candidateCol !== undefined) {
+        const candidate = { col: placementMode.candidateCol, row: placementMode.candidateRow };
+        this._drawPlacementPreview(candidate, placementMode, ts, true);
+        // Also show hover ghost faintly if hover is different
+        if (hoverTile && (hoverTile.col !== candidate.col || hoverTile.row !== candidate.row)) {
+          this._drawPlacementPreview(hoverTile, placementMode, ts, false, 0.4);
+        }
+      } else if (hoverTile) {
+        this._drawPlacementPreview(hoverTile, placementMode, ts, false);
+      }
     }
 
     // Border around grid
@@ -68,27 +78,56 @@ export class TileRenderer {
     ctx.strokeRect(topLeft.x, topLeft.y, totalSize, totalSize);
   }
 
-  _drawPlacementPreview(hoverTile, pm, ts) {
+  _drawPlacementPreview(tile, pm, ts, isLocked = false, alpha = 1) {
     const ctx = this.ctx;
-    const canPlace = this.grid.isAreaFree(hoverTile.col, hoverTile.row, pm.width, pm.height);
+    const canPlace = this.grid.isAreaFree(tile.col, tile.row, pm.width, pm.height);
+
+    const prevAlpha = ctx.globalAlpha;
+    ctx.globalAlpha = alpha;
 
     for (let dr = 0; dr < pm.height; dr++) {
       for (let dc = 0; dc < pm.width; dc++) {
-        const gc = hoverTile.col + dc;
-        const gr = hoverTile.row + dr;
+        const gc = tile.col + dc;
+        const gr = tile.row + dr;
         if (!this.grid.inBounds(gc, gr)) continue;
 
         const gs = tileToScreen(gc, gr, this.camera);
         const tileValid = this.grid.getTile(gc, gr)?.occupiedBy === null;
-        const color = canPlace && tileValid ? COLORS.GRID_VALID : COLORS.GRID_INVALID;
 
-        ctx.fillStyle = color;
+        let fill, stroke, strokeW;
+        if (isLocked && canPlace && tileValid) {
+          // Locked candidate — gold highlight
+          fill = COLORS.GRID_LOCKED || 'rgba(255, 210, 102, 0.45)';
+          stroke = '#ffd266';
+          strokeW = 3;
+        } else {
+          fill = canPlace && tileValid ? COLORS.GRID_VALID : COLORS.GRID_INVALID;
+          stroke = canPlace ? 'rgba(0,200,0,0.6)' : 'rgba(220,0,0,0.6)';
+          strokeW = 2;
+        }
+
+        ctx.fillStyle = fill;
         ctx.fillRect(gs.x, gs.y, ts, ts);
 
-        ctx.strokeStyle = canPlace ? 'rgba(0,200,0,0.6)' : 'rgba(220,0,0,0.6)';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = strokeW;
         ctx.strokeRect(gs.x + 1, gs.y + 1, ts - 2, ts - 2);
       }
     }
+
+    // Pulsing outline around the whole footprint if locked
+    if (isLocked && canPlace) {
+      const topLeft = tileToScreen(tile.col, tile.row, this.camera);
+      const w = ts * pm.width;
+      const h = ts * pm.height;
+      ctx.strokeStyle = '#ffd266';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 4]);
+      ctx.lineDashOffset = -(performance.now() / 60) % 10;
+      ctx.strokeRect(topLeft.x - 1, topLeft.y - 1, w + 2, h + 2);
+      ctx.setLineDash([]);
+    }
+
+    ctx.globalAlpha = prevAlpha;
   }
 }

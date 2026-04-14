@@ -3,6 +3,16 @@ import { BUILDINGS } from '../data/BuildingConfig.js';
 import { TROOPS } from '../data/TroopConfig.js';
 import { DIFFICULTY } from '../core/Constants.js';
 
+const BUILDING_ICONS = {
+  DOG_HQ: '🏛️',
+  TRAINING_CAMP: '⚔️',
+  FORT: '🛡️',
+  WALL: '🧱',
+  WATER_WELL: '💧',
+  MILK_FARM: '🥛',
+  ARCHER_TOWER: '🏹',
+};
+
 function formatTime(seconds) {
   seconds = Math.max(0, Math.ceil(seconds));
   if (seconds < 60) return `${seconds}s`;
@@ -24,12 +34,20 @@ export class UIManager {
     this.waveSystem = waveSystem;
     this.troopPlacement = troopPlacement;
 
+    // Smoothly-animated displayed HUD values
+    this._displayed = {
+      water: gameState.resources.water,
+      milk: gameState.resources.milk,
+      coins: gameState.dogCoins,
+      xp: gameState.playerXP,
+    };
+
     this._cacheElements();
     this._bindEvents();
     this._setupEventBus();
     this._populateStore();
     this._setupDifficultySelector();
-    this.updateHUD();
+    this.updateHUD(true);
   }
 
   _cacheElements() {
@@ -79,7 +97,7 @@ export class UIManager {
     // Placement confirm tray
     this.placementConfirm = document.getElementById('placement-confirm');
     this.pcInfo = document.getElementById('pc-info');
-    this.pcConfirmBtn = document.getElementById('pc-confirm-btn');
+    this.pcPayButtons = document.getElementById('pc-pay-buttons');
     this.pcCancelBtn = document.getElementById('pc-cancel-btn');
   }
 
@@ -94,8 +112,7 @@ export class UIManager {
     this.cancelDeployBtn.addEventListener('click', () => this._cancelPreBattle());
     this.rewardDismiss.addEventListener('click', () => this._dismissReward());
 
-    // Placement confirm tray
-    this.pcConfirmBtn.addEventListener('click', () => EventBus.emit('placement:doConfirm'));
+    // Placement confirm tray — cancel
     this.pcCancelBtn.addEventListener('click', () => EventBus.emit('placement:doCancel'));
   }
 
@@ -199,13 +216,36 @@ export class UIManager {
     });
   }
 
-  updateHUD() {
+  updateHUD(instant = false) {
     const cap = this.state.getStorageCap();
-    this.waterCount.textContent = Math.floor(this.state.resources.water);
+
+    // Detect resource changes and flash the relevant HUD row
+    const prevW = this._displayed.water;
+    const prevM = this._displayed.milk;
+    const prevC = this._displayed.coins;
+    const prevX = this._displayed.xp;
+
+    if (instant) {
+      this._displayed.water = this.state.resources.water;
+      this._displayed.milk = this.state.resources.milk;
+      this._displayed.coins = this.state.dogCoins;
+      this._displayed.xp = this.state.playerXP;
+    }
+
+    // Flash classes based on direction
+    if (!instant) {
+      if (this.state.resources.water < prevW - 0.5) this._flash('hud-water', 'flash-down');
+      else if (this.state.resources.water > prevW + 0.5) this._flash('hud-water', 'flash-up');
+      if (this.state.resources.milk < prevM - 0.5) this._flash('hud-milk', 'flash-down');
+      else if (this.state.resources.milk > prevM + 0.5) this._flash('hud-milk', 'flash-up');
+      if (this.state.dogCoins !== prevC) this._flash('hud-coins', this.state.dogCoins < prevC ? 'flash-down' : 'flash-up');
+    }
+
+    this.waterCount.textContent = Math.floor(this._displayed.water);
     this.waterCap.textContent = cap;
-    this.milkCount.textContent = Math.floor(this.state.resources.milk);
+    this.milkCount.textContent = Math.floor(this._displayed.milk);
     this.milkCap.textContent = cap;
-    this.coinCount.textContent = this.state.dogCoins;
+    this.coinCount.textContent = Math.floor(this._displayed.coins);
     if (this.bonesCount) {
       this.bonesCount.textContent = this.state.adminMode
         ? '∞'
@@ -214,8 +254,8 @@ export class UIManager {
     this.hudLevel.textContent = `Level ${this.state.playerLevel}`;
 
     const xpNeeded = this.state.getXPForNextLevel();
-    const xpPct = Math.min(100, (this.state.playerXP / xpNeeded) * 100);
-    this.hudXP.textContent = `${this.state.playerXP}/${xpNeeded}`;
+    const xpPct = Math.min(100, (this._displayed.xp / xpNeeded) * 100);
+    this.hudXP.textContent = `${Math.floor(this._displayed.xp)}/${xpNeeded}`;
     this.xpBarFill.style.width = `${xpPct}%`;
 
     this.hudWave.textContent = `Wave: ${this.state.currentWave}`;
@@ -243,42 +283,117 @@ export class UIManager {
     }
     const config = BUILDINGS[pm.configId];
     const cost = config.costs[0];
-    const canAfford = this.state.canAffordFlex(cost);
+    const icon = BUILDING_ICONS[pm.configId] || '🏗️';
+    const hasWater = this.state.resources.water >= cost.amount;
+    const hasMilk = this.state.resources.milk >= cost.amount;
 
     let msg;
     if (hasCandidate && pm.candidateCol !== undefined) {
-      msg = `Place <strong>${config.name}</strong> here?<br>
-        <small>Cost: <strong>${cost.amount}</strong> Water or Milk · ${this._formatTime(config.buildTime[0])} build</small>`;
+      msg = `<span style="font-size:22px">${icon}</span> Place <strong>${config.name}</strong> at <strong>(${pm.candidateCol}, ${pm.candidateRow})</strong>?<br>
+        <small>Cost: <strong>${cost.amount}</strong> · ${this._formatTime(config.buildTime[0])} build</small>`;
     } else {
-      msg = `Tap a tile to place <strong>${config.name}</strong>.<br>
-        <small>Cost: <strong>${cost.amount}</strong> Water or Milk · ${this._formatTime(config.buildTime[0])} build</small>`;
+      msg = `<span style="font-size:22px">${icon}</span> Tap a tile to place <strong>${config.name}</strong><br>
+        <small>Cost: <strong>${cost.amount}</strong> · ${this._formatTime(config.buildTime[0])} build</small>`;
     }
-    if (!canAfford) {
+    this.pcInfo.innerHTML = msg;
+
+    // Two pay buttons
+    this.pcPayButtons.innerHTML = '';
+    const waterBtn = document.createElement('button');
+    waterBtn.className = 'btn pc-pay-water';
+    waterBtn.innerHTML = `💧 Pay ${cost.amount} Water`;
+    waterBtn.disabled = !hasCandidate || !hasWater;
+    waterBtn.addEventListener('click', () => {
+      EventBus.emit('placement:doConfirm', { resource: 'water' });
+    });
+
+    const milkBtn = document.createElement('button');
+    milkBtn.className = 'btn pc-pay-milk';
+    milkBtn.innerHTML = `🥛 Pay ${cost.amount} Milk`;
+    milkBtn.disabled = !hasCandidate || !hasMilk;
+    milkBtn.addEventListener('click', () => {
+      EventBus.emit('placement:doConfirm', { resource: 'milk' });
+    });
+
+    this.pcPayButtons.appendChild(waterBtn);
+    this.pcPayButtons.appendChild(milkBtn);
+
+    // Top-up option if neither resource has enough
+    if (!hasWater && !hasMilk) {
       const shortW = cost.amount - this.state.resources.water;
       const shortM = cost.amount - this.state.resources.milk;
       const smaller = Math.min(shortW, shortM);
       const bonesNeeded = Math.ceil(smaller / 25);
-      msg += `<br><span style="color:#ec7c7c">Need ${smaller} more</span>
-        <button class="btn btn-topup" id="pc-topup-btn">⚡ Top up with ${bonesNeeded} <span class="cost-bones">Premium Bones</span></button>`;
-    }
-    this.pcInfo.innerHTML = msg;
-    this.pcConfirmBtn.disabled = !hasCandidate || !canAfford;
-    this.placementConfirm.classList.remove('hidden');
-
-    const topupBtn = document.getElementById('pc-topup-btn');
-    if (topupBtn) {
-      topupBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
+      const whichRes = shortW <= shortM ? 'Water' : 'Milk';
+      const topup = document.createElement('button');
+      topup.className = 'btn btn-topup';
+      topup.innerHTML = `⚡ Top up ${smaller} ${whichRes} (${bonesNeeded} <span class="cost-bones">Premium Bones</span>)`;
+      topup.addEventListener('click', () => {
         const result = this.state.topUpShortfallFlex(cost.amount);
-        if (result.ok) {
-          this._showPlacementConfirm(hasCandidate);
-        }
+        if (result.ok) this._showPlacementConfirm(hasCandidate);
       });
+      this.pcPayButtons.appendChild(topup);
     }
+
+    this.placementConfirm.classList.remove('hidden');
   }
 
   _hidePlacementConfirm() {
     if (this.placementConfirm) this.placementConfirm.classList.add('hidden');
+  }
+
+  // Smoothly lerp displayed HUD values toward real ones — called every frame
+  tickHud(dt) {
+    const gs = this.state;
+    // Lerp speed: about 0.5s to close the gap
+    const k = Math.min(1, dt * 6);
+    let changed = false;
+
+    if (this._displayed.water !== gs.resources.water) {
+      const diff = gs.resources.water - this._displayed.water;
+      // Snap when very close to avoid infinite tween
+      if (Math.abs(diff) < 0.5) this._displayed.water = gs.resources.water;
+      else this._displayed.water += diff * k;
+      changed = true;
+    }
+    if (this._displayed.milk !== gs.resources.milk) {
+      const diff = gs.resources.milk - this._displayed.milk;
+      if (Math.abs(diff) < 0.5) this._displayed.milk = gs.resources.milk;
+      else this._displayed.milk += diff * k;
+      changed = true;
+    }
+    if (this._displayed.coins !== gs.dogCoins) {
+      const diff = gs.dogCoins - this._displayed.coins;
+      if (Math.abs(diff) < 0.5) this._displayed.coins = gs.dogCoins;
+      else this._displayed.coins += diff * k;
+      changed = true;
+    }
+    if (this._displayed.xp !== gs.playerXP) {
+      const diff = gs.playerXP - this._displayed.xp;
+      if (Math.abs(diff) < 0.5) this._displayed.xp = gs.playerXP;
+      else this._displayed.xp += diff * k;
+      changed = true;
+    }
+
+    if (changed) {
+      this.waterCount.textContent = Math.floor(this._displayed.water);
+      this.milkCount.textContent = Math.floor(this._displayed.milk);
+      this.coinCount.textContent = Math.floor(this._displayed.coins);
+      const xpNeeded = this.state.getXPForNextLevel();
+      const xpPct = Math.min(100, (this._displayed.xp / xpNeeded) * 100);
+      this.hudXP.textContent = `${Math.floor(this._displayed.xp)}/${xpNeeded}`;
+      this.xpBarFill.style.width = `${xpPct}%`;
+    }
+  }
+
+  _flash(elementId, cls) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.classList.remove('flash-down', 'flash-up');
+    // Force reflow to restart animation
+    void el.offsetWidth;
+    el.classList.add(cls);
+    setTimeout(() => el.classList.remove(cls), 700);
   }
 
   _formatTime(seconds) {
@@ -302,8 +417,9 @@ export class UIManager {
       if (!unlocked) item.classList.add('locked');
 
       const cost = config.costs[0];
+      const icon = BUILDING_ICONS[id] || '🏗️';
       item.innerHTML = `
-        <div class="store-item-name">${config.name}</div>
+        <div class="store-item-name"><span class="store-item-icon">${icon}</span>${config.name}</div>
         <div class="store-item-cost">
           <strong>${cost.amount}</strong>
           <span class="cost-water">Water</span>
@@ -311,7 +427,7 @@ export class UIManager {
           <span class="cost-milk">Milk</span>
         </div>
         <div class="store-item-size">${config.tileWidth}x${config.tileHeight} tiles · ${formatTime(config.buildTime[0])} build</div>
-        ${!unlocked ? `<div style="color:#e74c3c;font-size:11px">Unlocks at Level ${config.unlockLevel}</div>` : ''}
+        ${!unlocked ? `<div style="color:#ec7c7c;font-size:11px">Unlocks at Level ${config.unlockLevel}</div>` : ''}
       `;
 
       if (unlocked) {

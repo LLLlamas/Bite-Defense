@@ -208,7 +208,7 @@ canvas.addEventListener('contextmenu', () => {
 });
 
 // Placement confirm/cancel handlers
-EventBus.on('placement:doConfirm', () => {
+EventBus.on('placement:doConfirm', (data) => {
   const pm = gameState.placementMode;
   if (!pm || pm.candidateCol === undefined) return;
   const col = pm.candidateCol;
@@ -219,10 +219,28 @@ EventBus.on('placement:doConfirm', () => {
   }
   const config = BUILDINGS[pm.configId];
   const cost = config.costs[0];
+  const chosen = data?.resource || pm.resourceChoice || null;
   if (!gameState.canAffordFlex(cost)) return;
   if (gameState.activeBuilds >= gameState.builderSlots && config.buildTime[0] > 0) return;
 
-  gameState.spendFlex(cost, pm.resourceChoice || null);
+  const spent = gameState.spendFlex(cost, chosen);
+  if (!spent) return;
+
+  // Floating "-X Water/Milk" animation at the building location
+  const usedResource = chosen || gameState.preferredResource(cost);
+  const centerCol = col + config.tileWidth / 2;
+  const centerRow = row + config.tileHeight / 2;
+  const label = usedResource === 'milk' ? `-${cost.amount} 🥛` : `-${cost.amount} 💧`;
+  gameState.effects.push({
+    type: 'spend',
+    col: centerCol,
+    row: centerRow,
+    value: label,
+    resource: usedResource,
+    progress: 0,
+    duration: 1.4,
+  });
+
   buildingSystem.placeBuilding(pm.configId, col, row);
   gameState.placementMode = null;
   EventBus.emit('placement:cancel');
@@ -300,7 +318,10 @@ function update(dt) {
     gameState.save();
   }
 
-  // Update HUD every 0.5 seconds
+  // Smooth HUD number animation — runs every frame
+  uiManager.tickHud(dt);
+
+  // Full HUD refresh every 0.5s (for labels, caps, level, etc.)
   hudTimer += dt;
   if (hudTimer >= 0.5) {
     hudTimer = 0;

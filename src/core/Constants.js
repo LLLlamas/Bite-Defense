@@ -49,7 +49,8 @@ export const COLORS = {
   GRID_HOVER: 'rgba(255, 255, 255, 0.25)',
   GRID_VALID: 'rgba(0, 200, 0, 0.35)',
   GRID_INVALID: 'rgba(220, 0, 0, 0.35)',
-  BACKGROUND: '#2d5a1e',
+  GRID_LOCKED: 'rgba(255, 210, 102, 0.45)',  // candidate/locked placement tile
+  BACKGROUND: '#24507c',  // medium blue surrounding the map
 
   // HP bars
   HP_BAR_BG: '#333',
