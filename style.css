@@ -361,11 +361,27 @@ body {
 
 .btn-topup {
   background: linear-gradient(180deg, #ec7cc8 0%, #c0397d 100%);
-  font-size: 11px;
-  padding: 6px 12px;
+  font-size: 12px;
+  padding: 8px 14px;
   margin-top: 6px;
+  display: block;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 0 10px rgba(255, 128, 200, 0.55),
+              0 0 18px rgba(232, 67, 147, 0.35),
+              inset 0 1px 0 rgba(255,255,255,0.25);
+  animation: topup-glow 1.8s ease-in-out infinite;
 }
-.btn-topup:hover { background: linear-gradient(180deg, #f598d6 0%, #d04a8e 100%); }
+.btn-topup:hover {
+  background: linear-gradient(180deg, #f598d6 0%, #d04a8e 100%);
+  box-shadow: 0 0 14px rgba(255, 160, 220, 0.75),
+              0 0 24px rgba(232, 67, 147, 0.5);
+}
+
+@keyframes topup-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(255, 128, 200, 0.45), 0 0 14px rgba(232, 67, 147, 0.25), inset 0 1px 0 rgba(255,255,255,0.25); }
+  50%      { box-shadow: 0 0 16px rgba(255, 170, 230, 0.75), 0 0 26px rgba(232, 67, 147, 0.55), inset 0 1px 0 rgba(255,255,255,0.3); }
+}
 
 /* Training Panel */
 #training-content { padding: 14px 16px; }
@@ -378,6 +394,23 @@ body {
   color: #b8a87f;
 }
 .camp-capacity strong { color: var(--gold); }
+
+.building-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.building-actions .btn { flex: 1; padding: 8px 10px; font-size: 13px; }
+.btn-move {
+  background: linear-gradient(180deg, #6bb4f0 0%, #2a6dab 100%);
+  color: #fff;
+}
+.btn-move:hover { background: linear-gradient(180deg, #82c5ff 0%, #3f85c4 100%); }
+.btn-delete {
+  background: linear-gradient(180deg, #e9736b 0%, #a62c24 100%);
+  color: #fff;
+}
+.btn-delete:hover { background: linear-gradient(180deg, #f08a82 0%, #c33a30 100%); }
 
 .btn-rally {
   background: linear-gradient(180deg, #ec9550 0%, #c0640e 100%);
@@ -824,7 +857,7 @@ body {
 }
 
 /* ===== Placement Confirm Tray ===== */
-#placement-confirm {
+#placement-confirm, #move-confirm {
   position: fixed;
   bottom: 110px;
   left: 50%;
@@ -837,7 +870,14 @@ body {
   box-shadow: 0 6px 20px rgba(0,0,0,0.5);
   text-align: center;
 }
-#placement-confirm.hidden { display: none; }
+#placement-confirm.hidden, #move-confirm.hidden { display: none; }
+
+#mc-confirm-btn {
+  background: linear-gradient(180deg, #7ad98a 0%, #2c9a4a 100%);
+  color: #fff;
+}
+#mc-confirm-btn:hover:not(:disabled) { background: linear-gradient(180deg, #8fe89d 0%, #37b059 100%); }
+#mc-confirm-btn:disabled { background: #555; color: #aaa; cursor: not-allowed; opacity: 0.6; }
 .pc-info {
   font-size: 13px;
   color: var(--gold);

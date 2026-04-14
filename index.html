@@ -167,6 +167,23 @@
     </div>
   </div>
 
+  <!-- No-troops warning card -->
+  <div id="no-troops-card" class="info-card hidden">
+    <div class="info-card-content">
+      <h2>🐶 You Need Dog Troops!</h2>
+      <p>You don't have any dogs trained yet — the cats will tear through your base!</p>
+      <h3>🏗️ Get Ready</h3>
+      <ul>
+        <li>Open the <b>🛒 Store</b> and build a <b>⚔️ Training Camp</b> to recruit Soldiers &amp; Archers.</li>
+        <li>Build a <b>🛡️ Fort</b> so your trained dogs have somewhere to huddle up.</li>
+        <li>Once trained, dogs stay garrisoned in the Fort until the next battle.</li>
+      </ul>
+      <h3>⚔️ When You're Ready</h3>
+      <p>At the start of the wave, <b>spread your troops out toward the direction the cats are coming from</b> — watch the red spawn marker!</p>
+      <button id="no-troops-dismiss" class="btn">Got it!</button>
+    </div>
+  </div>
+
   <!-- Pre-battle strategy card -->
   <div id="prebattle-card" class="info-card hidden">
     <div class="info-card-content">
@@ -180,6 +197,15 @@
       <h3>💰 What's at Stake</h3>
       <p>If your dogs fall in battle, the cats will <b>steal your Water and Milk</b> — more on harder difficulties!</p>
       <button id="prebattle-dismiss" class="btn">Deploy Ready!</button>
+    </div>
+  </div>
+
+  <!-- Floating move-confirm tray, shown when a building-move target has been picked -->
+  <div id="move-confirm" class="hidden">
+    <div class="pc-info" id="mc-info">Tap a tile to move the building</div>
+    <div class="pc-buttons">
+      <button id="mc-confirm-btn" class="btn" disabled>✓ Confirm Move</button>
+      <button id="mc-cancel-btn" class="btn pc-cancel">✕ Cancel</button>
     </div>
   </div>
 

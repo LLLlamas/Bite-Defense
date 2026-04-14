@@ -104,12 +104,20 @@ export class UIManager {
     this.introDismiss = document.getElementById('intro-dismiss');
     this.prebattleCard = document.getElementById('prebattle-card');
     this.prebattleDismiss = document.getElementById('prebattle-dismiss');
+    this.noTroopsCard = document.getElementById('no-troops-card');
+    this.noTroopsDismiss = document.getElementById('no-troops-dismiss');
 
     // Placement confirm tray
     this.placementConfirm = document.getElementById('placement-confirm');
     this.pcInfo = document.getElementById('pc-info');
     this.pcPayButtons = document.getElementById('pc-pay-buttons');
     this.pcCancelBtn = document.getElementById('pc-cancel-btn');
+
+    // Move confirm tray
+    this.moveConfirm = document.getElementById('move-confirm');
+    this.mcInfo = document.getElementById('mc-info');
+    this.mcConfirmBtn = document.getElementById('mc-confirm-btn');
+    this.mcCancelBtn = document.getElementById('mc-cancel-btn');
   }
 
   _bindEvents() {
@@ -127,10 +135,20 @@ export class UIManager {
     // Placement confirm tray — cancel
     this.pcCancelBtn.addEventListener('click', () => EventBus.emit('placement:doCancel'));
 
-    // Info cards
-    this.infoToggleBtn?.addEventListener('click', () => this._showIntroCard());
+    // Move confirm tray
+    this.mcConfirmBtn?.addEventListener('click', () => EventBus.emit('move:doConfirm'));
+    this.mcCancelBtn?.addEventListener('click', () => EventBus.emit('move:doCancel'));
+
+    // Info cards — wire both click and touchend so mobile always works
+    const openIntro = (e) => { e?.preventDefault(); this._showIntroCard(); };
+    this.infoToggleBtn?.addEventListener('click', openIntro);
+    this.infoToggleBtn?.addEventListener('touchend', openIntro);
     this.introDismiss?.addEventListener('click', () => this.introCard?.classList.add('hidden'));
     this.prebattleDismiss?.addEventListener('click', () => this.prebattleCard?.classList.add('hidden'));
+    this.noTroopsDismiss?.addEventListener('click', () => this.noTroopsCard?.classList.add('hidden'));
+    this.noTroopsCard?.addEventListener('click', (e) => {
+      if (e.target === this.noTroopsCard) this.noTroopsCard.classList.add('hidden');
+    });
     // Click outside card dismisses
     this.introCard?.addEventListener('click', (e) => {
       if (e.target === this.introCard) this.introCard.classList.add('hidden');
@@ -139,9 +157,9 @@ export class UIManager {
       if (e.target === this.prebattleCard) this.prebattleCard.classList.add('hidden');
     });
 
-    // Show intro on first visit
+    // Show intro on first visit (defer so it doesn't fight with initial UI paint)
     if (!localStorage.getItem('biteDefense_seenIntro')) {
-      this._showIntroCard();
+      setTimeout(() => this._showIntroCard(), 150);
       localStorage.setItem('biteDefense_seenIntro', '1');
     }
 
@@ -218,6 +236,18 @@ export class UIManager {
       // Speed control visible during pre-battle and battle
       this.speedControl?.classList.remove('hidden');
       this._updateIncomingCount();
+      // If no troops trained, warn the player after a short beat
+      const hasTroops = this.state.troops.some(t => t.state !== 'DEAD');
+      if (!hasTroops) {
+        setTimeout(() => {
+          // Recheck in case they bought some during the delay
+          const stillEmpty = !this.state.troops.some(t => t.state !== 'DEAD');
+          if (stillEmpty && this.state.phase === PHASE.PRE_BATTLE) {
+            this._showNoTroopsCard();
+          }
+        }, 1500);
+        return;
+      }
       // First-time pre-battle tip
       if (!localStorage.getItem('biteDefense_seenPrebattle')) {
         this._showPrebattleCard();
@@ -283,6 +313,18 @@ export class UIManager {
       this.waveStatus.classList.add('hidden');
       this.updateHUD();
       this._updateIncomingCount();
+    });
+
+    EventBus.on('building:moveStarted', ({ buildingId }) => {
+      const b = this.state.buildings.find(x => x.id === buildingId);
+      this._showMoveConfirm(b, null);
+    });
+    EventBus.on('move:candidate', ({ buildingId, col, row }) => {
+      const b = this.state.buildings.find(x => x.id === buildingId);
+      this._showMoveConfirm(b, { col, row });
+    });
+    EventBus.on('building:moveEnded', () => {
+      this._hideMoveConfirm();
     });
 
     EventBus.on('player:levelup', () => {
@@ -411,7 +453,7 @@ export class UIManager {
         const bonesNeeded = Math.ceil(short / 25);
         const topup = document.createElement('button');
         topup.className = 'btn btn-topup';
-        topup.innerHTML = `⚡ +${short} ${label} (${bonesNeeded} <span class="cost-bones">Bones</span>)`;
+        topup.innerHTML = `⚡ Purchase <strong>${short} ${label}</strong> with <span class="cost-bones">${bonesNeeded} Premium Bones</span>`;
         topup.addEventListener('click', () => {
           const result = this.state.topUpShortfall(cost.amount, resource);
           if (result.ok) this._showPlacementConfirm(hasCandidate);
@@ -429,6 +471,24 @@ export class UIManager {
 
   _hidePlacementConfirm() {
     if (this.placementConfirm) this.placementConfirm.classList.add('hidden');
+  }
+
+  _showMoveConfirm(building, candidate) {
+    if (!this.moveConfirm) return;
+    const name = building ? building.getConfig().name : 'Building';
+    const icon = building ? (BUILDING_ICONS[building.configId] || '🏗️') : '🏗️';
+    if (candidate) {
+      this.mcInfo.innerHTML = `<span style="font-size:22px">${icon}</span> Move <strong>${name}</strong> to <strong>(${candidate.col}, ${candidate.row})</strong>?`;
+      this.mcConfirmBtn.disabled = false;
+    } else {
+      this.mcInfo.innerHTML = `<span style="font-size:22px">${icon}</span> Tap a tile to position <strong>${name}</strong>`;
+      this.mcConfirmBtn.disabled = true;
+    }
+    this.moveConfirm.classList.remove('hidden');
+  }
+
+  _hideMoveConfirm() {
+    if (this.moveConfirm) this.moveConfirm.classList.add('hidden');
   }
 
   // Smoothly lerp displayed HUD values toward real ones — called every frame
@@ -598,7 +658,7 @@ export class UIManager {
           const short = coinCost - this.state.dogCoins;
           const bones = Math.ceil(short / 5);
           html += `<button class="btn btn-topup" id="btn-topup-coins" data-need="${coinCost}">
-            ⚡ Top up ${short} Dog Coins (${bones} Premium Bones)
+            ⚡ Purchase <strong>${short} Dog Coins</strong> with <span class="cost-bones">${bones} Premium Bones</span>
           </button>`;
         }
       } else {
@@ -613,9 +673,10 @@ export class UIManager {
           const shortW = upgradeCost.amount - this.state.resources.water;
           const shortM = upgradeCost.amount - this.state.resources.milk;
           const smaller = Math.min(shortW, shortM);
+          const cheaperLabel = shortW <= shortM ? 'Water' : 'Milk';
           const bones = Math.ceil(smaller / 25);
           html += `<button class="btn btn-topup" id="btn-topup-flex" data-need="${upgradeCost.amount}">
-            ⚡ Top up ${smaller} (${bones} Premium Bones)
+            ⚡ Purchase <strong>${smaller} ${cheaperLabel}</strong> with <span class="cost-bones">${bones} Premium Bones</span>
           </button>`;
         }
       }
@@ -625,6 +686,17 @@ export class UIManager {
       }
     } else if (building.level >= config.maxLevel) {
       html += `<div style="font-size:12px;color:#f39c12;margin-top:8px">Max Level</div>`;
+    }
+
+    // Move / Delete actions (HQ is protected — anchor of the base)
+    const isHQ = building.configId === 'DOG_HQ';
+    if (!isHQ) {
+      html += `<div class="building-actions">`;
+      if (!building.isBuilding) {
+        html += `<button class="btn btn-move" id="btn-move-building">✥ Move</button>`;
+      }
+      html += `<button class="btn btn-delete" id="btn-delete-building">🗑 Delete</button>`;
+      html += `</div>`;
     }
 
     this.buildingInfoContent.innerHTML = html;
@@ -661,6 +733,23 @@ export class UIManager {
       speedBtn.addEventListener('click', () => {
         if (this.buildingSystem.speedUp(building.id)) {
           this.showBuildingInfo(building);
+        }
+      });
+    }
+    const moveBtn = document.getElementById('btn-move-building');
+    if (moveBtn) {
+      moveBtn.addEventListener('click', () => {
+        this.state.movingBuildingId = building.id;
+        this.closeBuildingInfo();
+        EventBus.emit('building:moveStarted', { buildingId: building.id });
+      });
+    }
+    const deleteBtn = document.getElementById('btn-delete-building');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
+        if (confirm(`Delete ${config.name}? You won't get resources back.`)) {
+          this.buildingSystem.removeBuilding(building.id);
+          this.closeBuildingInfo();
         }
       });
     }
@@ -817,6 +906,10 @@ export class UIManager {
 
   _showPrebattleCard() {
     this.prebattleCard?.classList.remove('hidden');
+  }
+
+  _showNoTroopsCard() {
+    this.noTroopsCard?.classList.remove('hidden');
   }
 
   _deploy() {

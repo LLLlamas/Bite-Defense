@@ -48,6 +48,25 @@ export class BuildingSystem {
     return building;
   }
 
+  // Move an existing building to a new (col,row). Frees old area, re-occupies new.
+  moveBuilding(buildingId, col, row) {
+    const building = this.state.buildings.find(b => b.id === buildingId);
+    if (!building) return false;
+    const config = BUILDINGS[building.configId];
+    // Free the old area first so the new area check doesn't false-collide with itself
+    this.grid.freeArea(building.col, building.row, config.tileWidth, config.tileHeight);
+    if (!this.grid.isAreaFree(col, row, config.tileWidth, config.tileHeight)) {
+      // Re-occupy the old area to restore state
+      this.grid.occupyArea(building.col, building.row, config.tileWidth, config.tileHeight, building.id);
+      return false;
+    }
+    building.col = col;
+    building.row = row;
+    this.grid.occupyArea(col, row, config.tileWidth, config.tileHeight, building.id);
+    EventBus.emit('building:moved', { building });
+    return true;
+  }
+
   removeBuilding(buildingId) {
     const idx = this.state.buildings.findIndex(b => b.id === buildingId);
     if (idx === -1) return;

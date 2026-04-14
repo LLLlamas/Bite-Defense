@@ -33,6 +33,8 @@ export class GameState {
     this.selectedBuilding = null;
     this.selectedTroop = null;
     this.placementMode = null;
+    this.movingBuildingId = null; // id of building currently being relocated
+    this.moveCandidate = null; // {col,row} — pending move target awaiting confirm
 
     this.builderSlots = 2;
     this.activeBuilds = 0;

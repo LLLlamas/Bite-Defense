@@ -131,6 +131,25 @@ EventBus.on('input:click', ({ col, row }) => {
     return;
   }
 
+  // If moving an existing building, stage the click as a move candidate (requires Confirm)
+  if (gameState.movingBuildingId) {
+    const building = gameState.buildings.find(b => b.id === gameState.movingBuildingId);
+    if (!building) {
+      gameState.movingBuildingId = null;
+      gameState.moveCandidate = null;
+      return;
+    }
+    const cfg = building.getConfig();
+    // Temporarily free this building's current area so the same-tile re-placement check passes
+    grid.freeArea(building.col, building.row, cfg.tileWidth, cfg.tileHeight);
+    const ok = grid.isAreaFree(col, row, cfg.tileWidth, cfg.tileHeight);
+    grid.occupyArea(building.col, building.row, cfg.tileWidth, cfg.tileHeight, building.id);
+    if (!ok) return;
+    gameState.moveCandidate = { col, row };
+    EventBus.emit('move:candidate', { buildingId: building.id, col, row });
+    return;
+  }
+
   // If in placement mode, set the candidate position (require Confirm)
   if (gameState.placementMode) {
     const pm = gameState.placementMode;
@@ -195,6 +214,11 @@ EventBus.on('input:hover', ({ col, row }) => {
 
 // Cancel placement on right-click
 canvas.addEventListener('contextmenu', () => {
+  if (gameState.movingBuildingId) {
+    gameState.movingBuildingId = null;
+    gameState.moveCandidate = null;
+    EventBus.emit('building:moveEnded', {});
+  }
   if (gameState.placementMode) {
     gameState.placementMode = null;
     EventBus.emit('placement:cancel');
@@ -243,9 +267,31 @@ EventBus.on('placement:doCancel', () => {
   EventBus.emit('placement:cancel');
 });
 
+// Move confirm/cancel
+EventBus.on('move:doConfirm', () => {
+  const id = gameState.movingBuildingId;
+  const cand = gameState.moveCandidate;
+  if (!id || !cand) return;
+  if (buildingSystem.moveBuilding(id, cand.col, cand.row)) {
+    gameState.movingBuildingId = null;
+    gameState.moveCandidate = null;
+    EventBus.emit('building:moveEnded', { buildingId: id });
+  }
+});
+
+EventBus.on('move:doCancel', () => {
+  gameState.movingBuildingId = null;
+  gameState.moveCandidate = null;
+  EventBus.emit('building:moveEnded', {});
+});
+
 // Cancel on Escape
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
+    if (gameState.movingBuildingId) {
+      gameState.movingBuildingId = null;
+      EventBus.emit('building:moveEnded', {});
+    }
     if (gameState.placementMode) {
       gameState.placementMode = null;
       EventBus.emit('placement:cancel');
@@ -339,4 +385,5 @@ window.__gameLoop = gameLoop;
 window.__buildingSystem = buildingSystem;
 window.__trainingSystem = trainingSystem;
 window.__camera = camera;
+window.__uiManager = uiManager;
 console.log('Bite Defense initialized!');
