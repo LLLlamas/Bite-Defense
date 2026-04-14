@@ -127,15 +127,19 @@ export class UIManager {
       }
     });
 
-    EventBus.on('wave:failed', ({ wave }) => {
+    EventBus.on('wave:failed', ({ wave, waterStolen, milkStolen, theftPct }) => {
       this.waveStartBtn.classList.remove('hidden');
       this.waveStartBtn.textContent = `Retry Wave ${wave}`;
       this.difficultySelector.classList.remove('hidden');
       this.preBattleControls.classList.add('hidden');
-      this.waveStatus.textContent = `Wave ${wave} failed! HQ was destroyed.`;
+      const stolenMsg = (waterStolen || milkStolen)
+        ? `Cats stole ${waterStolen} Water, ${milkStolen} Milk (${theftPct}%)`
+        : `Your troops fell.`;
+      this.waveStatus.textContent = `Wave ${wave} failed! ${stolenMsg}`;
       this.waveStatus.classList.remove('hidden');
       this.state.currentWave--;
-      setTimeout(() => { this.waveStatus.classList.add('hidden'); }, 3000);
+      this.updateHUD();
+      setTimeout(() => { this.waveStatus.classList.add('hidden'); }, 5000);
     });
 
     EventBus.on('player:levelup', ({ level }) => {
@@ -236,8 +240,8 @@ export class UIManager {
 
     if (config.troopCapacity) {
       const cap = config.troopCapacity[building.level - 1];
-      const current = this.state.getTroopCountForCamp(building.id);
-      html += `<div class="info-stat"><span>Troop Capacity</span><span>${current} / ${cap}</span></div>`;
+      html += `<div class="info-stat"><span>Fort Slots</span><span>${cap}</span></div>`;
+      html += `<div class="info-stat"><span>Total Slots Used</span><span>${this.state.getUsedFortCapacity()} / ${this.state.getTotalFortCapacity()}</span></div>`;
     }
 
     if (building.isBuilding) {
@@ -307,19 +311,24 @@ export class UIManager {
     const building = this._currentTrainingBuilding;
     if (!building || !this.trainingPanel || this.trainingPanel.classList.contains('hidden')) return;
 
-    const capacity = this.trainingSystem.getTroopCapacity(building);
-    const currentTroops = this.trainingSystem.getActiveTroopCount(building);
     const queuedCount = building.trainingQueue.length;
-    const atCapacity = currentTroops + queuedCount >= capacity;
+    const totalFortCap = this.state.getTotalFortCapacity();
+    const usedFortCap = this.state.getUsedFortCapacity();
+    const fortAvail = this.state.getFortAvailableSlots();
 
     let html = '';
 
-    // Capacity display
+    const noFort = totalFortCap === 0;
+
     html += `<div class="camp-capacity">
-      <strong>Troops: ${currentTroops}/${capacity}</strong>
+      <strong>Fort: ${usedFortCap}/${totalFortCap} slots</strong>
       ${queuedCount > 0 ? ` (${queuedCount} training)` : ''}
       <button class="btn-rally" id="btn-set-rally">Set Rally Point</button>
     </div>`;
+
+    if (noFort) {
+      html += `<div style="font-size:12px;color:#e74c3c;padding:6px 0">⚠ Build a Fort to house trained troops.</div>`;
+    }
 
     // Troop options
     for (const [id, config] of Object.entries(TROOPS)) {
@@ -329,6 +338,9 @@ export class UIManager {
       const canAfford = this.state.canAfford(cost);
       const maxQueue = building.getStat('queueSize') || 5;
       const queueFull = building.trainingQueue.length >= maxQueue;
+      const troopLevel = building.level;
+      const needSlots = troopLevel;
+      const notEnoughSlots = fortAvail < needSlots;
 
       html += `
         <div class="troop-option">
@@ -336,7 +348,7 @@ export class UIManager {
             <div class="troop-option-name">${config.name} (Lv${building.level})</div>
             <div class="troop-option-stats">
               HP: ${config.hp[lvlIdx]} | DMG: ${config.damage[lvlIdx]} |
-              ${config.type === 'ranged' ? `Range: ${config.range[lvlIdx]}` : 'Melee'}
+              ${config.type === 'ranged' ? `Range: ${config.range[lvlIdx]}` : 'Melee'} | Slots: ${needSlots}
             </div>
             <div class="troop-option-stats">
               <span class="cost-water">${cost.water}W</span> /
@@ -344,7 +356,7 @@ export class UIManager {
             </div>
           </div>
           <button class="btn btn-train" data-troop="${id}"
-            ${!canAfford || queueFull || atCapacity ? 'disabled' : ''}>Train</button>
+            ${!canAfford || queueFull || notEnoughSlots || noFort ? 'disabled' : ''}>Train</button>
         </div>
       `;
     }

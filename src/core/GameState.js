@@ -20,6 +20,9 @@ export class GameState {
     this.effects = [];
     this.rallyPoints = new Map(); // buildingId -> { col, row }
 
+    // Spawn corner for current wave (0=TL, 1=TR, 2=BL, 3=BR)
+    this.waveCorner = null;
+
     this.hoverTile = null;
     this.selectedBuilding = null;
     this.selectedTroop = null;
@@ -102,6 +105,38 @@ export class GameState {
     return this.troops.filter(t => t.campId === campId && t.state !== 'DEAD').length;
   }
 
+  // Total fort capacity (sum over all FORT buildings at their level)
+  getTotalFortCapacity() {
+    let total = 0;
+    for (const b of this.buildings) {
+      if (b.configId !== 'FORT' || b.isBuilding) continue;
+      const cap = b.getStat('troopCapacity');
+      if (cap) total += cap;
+    }
+    return total;
+  }
+
+  // Used fort slots — each troop takes (troop.level) slots
+  getUsedFortCapacity() {
+    let used = 0;
+    for (const t of this.troops) {
+      if (t.state === 'DEAD') continue;
+      used += t.level;
+    }
+    // Also count queued troops across camps (reserving slots)
+    for (const b of this.buildings) {
+      if (b.configId !== 'TRAINING_CAMP') continue;
+      for (const q of b.trainingQueue) {
+        used += q.level;
+      }
+    }
+    return used;
+  }
+
+  getFortAvailableSlots() {
+    return Math.max(0, this.getTotalFortCapacity() - this.getUsedFortCapacity());
+  }
+
   save() {
     const data = {
       version: 2,
@@ -125,6 +160,7 @@ export class GameState {
         row: t.row,
         hp: t.hp,
         campId: t.campId,
+        fortId: t.fortId,
       })),
       rallyPoints: Array.from(this.rallyPoints.entries()),
     };

@@ -300,4 +300,6 @@ gameLoop.start();
 window.__gameState = gameState;
 window.__waveSystem = waveSystem;
 window.__gameLoop = gameLoop;
+window.__buildingSystem = buildingSystem;
+window.__trainingSystem = trainingSystem;
 console.log('Bite Defense initialized!');

@@ -9,7 +9,6 @@ export class CombatSystem {
   }
 
   update(dt) {
-    // Only run combat during battle phase
     if (this.state.phase !== PHASE.BATTLE) return;
 
     this._updateTowers(dt);
@@ -38,7 +37,6 @@ export class CombatSystem {
       const towerCol = building.col + config.tileWidth / 2;
       const towerRow = building.row + config.tileHeight / 2;
 
-      // Find nearest enemy in range
       let nearest = null;
       let nearestDist = Infinity;
 
@@ -59,18 +57,19 @@ export class CombatSystem {
     }
   }
 
+  // Stationary troops - only attack enemies within range, never chase
   _updateTroops(dt) {
     for (const troop of this.state.troops) {
       if (troop.state === 'DEAD') continue;
 
-      // Find nearest enemy
+      // Find nearest enemy within range
       let nearest = null;
       let nearestDist = Infinity;
 
       for (const enemy of this.state.enemies) {
         if (enemy.state === 'DEAD') continue;
         const dist = troop.distanceTo(enemy.col, enemy.row);
-        if (dist < nearestDist) {
+        if (dist <= troop.range && dist < nearestDist) {
           nearest = enemy;
           nearestDist = dist;
         }
@@ -83,109 +82,72 @@ export class CombatSystem {
       }
 
       troop.target = nearest;
+      troop.state = 'ATTACKING';
+      troop.attackCooldown -= dt;
 
-      if (nearestDist <= troop.range) {
-        // Attack
-        troop.state = 'ATTACKING';
-        troop.attackCooldown -= dt;
-
-        if (troop.attackCooldown <= 0) {
-          // Ranged troops fire projectiles, melee do direct damage
-          const troopConfig = troop.configId;
-          if (troop.range > 2) {
-            const proj = new Projectile(troop.col, troop.row, nearest, troop.damage);
-            this.state.projectiles.push(proj);
-          } else {
-            nearest.takeDamage(troop.damage);
-            this.state.addEffect('damage', nearest.col, nearest.row, troop.damage);
-          }
-          troop.attackCooldown = troop.attackSpeed;
+      if (troop.attackCooldown <= 0) {
+        if (troop.range > 2) {
+          const proj = new Projectile(troop.col, troop.row, nearest, troop.damage);
+          this.state.projectiles.push(proj);
+        } else {
+          nearest.takeDamage(troop.damage);
+          this.state.addEffect('damage', nearest.col, nearest.row, troop.damage);
         }
-      } else {
-        // Move toward enemy
-        troop.state = 'MOVING';
-        const dx = nearest.col - troop.col;
-        const dy = nearest.row - troop.row;
-        const dist = Math.hypot(dx, dy);
-        if (dist > 0) {
-          troop.col += (dx / dist) * troop.speed * dt;
-          troop.row += (dy / dist) * troop.speed * dt;
-        }
+        troop.attackCooldown = troop.attackSpeed;
       }
     }
   }
 
+  // Cats chase nearest troop and attack. No HQ damage — wave fail handled by WaveSystem.
   _updateEnemies(dt) {
-    const hq = this.state.buildings.find(b => b.configId === 'DOG_HQ');
-
     for (const enemy of this.state.enemies) {
       if (enemy.state === 'DEAD') continue;
 
-      // Check for blocking troops
-      let blocker = null;
-      let blockerDist = Infinity;
+      // Find nearest alive troop globally (not just in range)
+      let nearest = null;
+      let nearestDist = Infinity;
 
       for (const troop of this.state.troops) {
         if (troop.state === 'DEAD') continue;
         const dist = enemy.distanceTo(troop.col, troop.row);
-        if (dist <= enemy.range && dist < blockerDist) {
-          blocker = troop;
-          blockerDist = dist;
+        if (dist < nearestDist) {
+          nearest = troop;
+          nearestDist = dist;
         }
       }
 
-      if (blocker) {
-        // Fight the blocking troop
-        enemy.state = 'ATTACKING';
-        enemy.attackCooldown -= dt;
-        if (enemy.attackCooldown <= 0) {
-          blocker.takeDamage(enemy.damage);
-          this.state.addEffect('damage', blocker.col, blocker.row, enemy.damage);
-          enemy.attackCooldown = enemy.attackSpeed;
+      if (!nearest) {
+        // No troops left — wander toward base center (they'll be cleaned up by WaveSystem failure logic)
+        enemy.state = 'MOVING';
+        const cx = 15, cy = 15;
+        const dx = cx - enemy.col;
+        const dy = cy - enemy.row;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 0.01) {
+          enemy.col += (dx / dist) * enemy.speed * dt;
+          enemy.row += (dy / dist) * enemy.speed * dt;
         }
         continue;
       }
 
-      // Follow path
-      enemy.state = 'MOVING';
-      if (enemy.path && enemy.pathIndex < enemy.path.length) {
-        const target = enemy.path[enemy.pathIndex];
-        const dx = target.col - enemy.col;
-        const dy = target.row - enemy.row;
+      if (nearestDist <= enemy.range) {
+        // Attack
+        enemy.state = 'ATTACKING';
+        enemy.attackCooldown -= dt;
+        if (enemy.attackCooldown <= 0) {
+          nearest.takeDamage(enemy.damage);
+          this.state.addEffect('damage', nearest.col, nearest.row, enemy.damage);
+          enemy.attackCooldown = enemy.attackSpeed;
+        }
+      } else {
+        // Chase nearest troop
+        enemy.state = 'MOVING';
+        const dx = nearest.col - enemy.col;
+        const dy = nearest.row - enemy.row;
         const dist = Math.hypot(dx, dy);
-
-        if (dist < 0.2) {
-          enemy.pathIndex++;
-        } else {
+        if (dist > 0) {
           enemy.col += (dx / dist) * enemy.speed * dt;
           enemy.row += (dy / dist) * enemy.speed * dt;
-        }
-      }
-
-      // Check if reached HQ
-      if (hq) {
-        const config = hq.getConfig();
-        const hqCCol = hq.col + config.tileWidth / 2;
-        const hqCRow = hq.row + config.tileHeight / 2;
-        const distToHQ = Math.hypot(enemy.col - hqCCol, enemy.row - hqCRow);
-
-        if (distToHQ < 2) {
-          // Deal damage to HQ
-          enemy.attackCooldown -= dt;
-          if (enemy.attackCooldown <= 0) {
-            hq.hp -= enemy.damage;
-            this.state.addEffect('damage', hqCCol, hqCRow, enemy.damage);
-            enemy.attackCooldown = enemy.attackSpeed;
-
-            if (hq.hp <= 0) {
-              EventBus.emit('wave:failed', { wave: this.state.currentWave });
-              hq.hp = hq.getMaxHp();
-              this.state.enemies = [];
-              this.state.waveActive = false;
-              this.state.phase = PHASE.BUILDING;
-              return;
-            }
-          }
         }
       }
     }
@@ -209,7 +171,6 @@ export class CombatSystem {
       const dist = Math.hypot(dx, dy);
 
       if (dist < 0.3) {
-        // Hit
         target.takeDamage(proj.damage);
         this.state.addEffect('damage', target.col, target.row, proj.damage);
         proj.alive = false;
@@ -217,7 +178,6 @@ export class CombatSystem {
         proj.col += (dx / dist) * proj.speed * dt;
         proj.row += (dy / dist) * proj.speed * dt;
 
-        // Arc effect
         proj.flightProgress += dt * proj.speed / dist;
         proj.arcHeight = Math.sin(proj.flightProgress * Math.PI) * 15;
       }
@@ -225,7 +185,6 @@ export class CombatSystem {
   }
 
   _cleanupDead() {
-    // Remove dead enemies, award resources
     for (let i = this.state.enemies.length - 1; i >= 0; i--) {
       const enemy = this.state.enemies[i];
       if (enemy.state === 'DEAD') {
@@ -237,14 +196,12 @@ export class CombatSystem {
       }
     }
 
-    // Remove dead troops
     for (let i = this.state.troops.length - 1; i >= 0; i--) {
       if (this.state.troops[i].state === 'DEAD') {
         this.state.troops.splice(i, 1);
       }
     }
 
-    // Remove dead projectiles
     this.state.projectiles = this.state.projectiles.filter(p => p.alive);
   }
 

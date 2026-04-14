@@ -10,6 +10,7 @@ export class Troop {
     this.col = col;
     this.row = row;
     this.campId = campId;
+    this.fortId = null;
     this.state = 'IDLE'; // IDLE, MOVING, ATTACKING, DEAD, REPOSITIONING
     this.target = null;
     this.attackCooldown = 0;

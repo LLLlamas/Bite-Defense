@@ -7,19 +7,6 @@ export class TrainingSystem {
     this.state = gameState;
   }
 
-  getTroopCapacity(building) {
-    const cap = building.getStat('troopCapacity');
-    return cap || 3;
-  }
-
-  getActiveTroopCount(building) {
-    return this.state.getTroopCountForCamp(building.id);
-  }
-
-  isAtCapacity(building) {
-    return this.getActiveTroopCount(building) >= this.getTroopCapacity(building);
-  }
-
   queueTroop(building, troopConfigId) {
     const troopConfig = TROOPS[troopConfigId];
     if (!troopConfig) return false;
@@ -27,16 +14,17 @@ export class TrainingSystem {
     const maxQueue = building.getStat('queueSize') || 5;
     if (building.trainingQueue.length >= maxQueue) return false;
 
-    // Check troop capacity (current troops + queued)
-    const currentCount = this.getActiveTroopCount(building);
-    const queuedCount = building.trainingQueue.length;
-    const capacity = this.getTroopCapacity(building);
-    if (currentCount + queuedCount >= capacity) return false;
-
     const level = building.level;
     const lvlIdx = level - 1;
-    const cost = troopConfig.trainCost[lvlIdx] || troopConfig.trainCost[troopConfig.trainCost.length - 1];
 
+    // Need Fort capacity: troop takes `level` slots
+    const fortAvail = this.state.getFortAvailableSlots();
+    if (fortAvail < level) {
+      EventBus.emit('training:blockedNoFort', { building });
+      return false;
+    }
+
+    const cost = troopConfig.trainCost[lvlIdx] || troopConfig.trainCost[troopConfig.trainCost.length - 1];
     if (!this.state.canAfford(cost)) return false;
     this.state.spend(cost);
 
@@ -61,12 +49,25 @@ export class TrainingSystem {
     const lvlIdx = item.level - 1;
     const cost = troopConfig.trainCost[lvlIdx] || troopConfig.trainCost[troopConfig.trainCost.length - 1];
 
-    // Refund half
     this.state.addResource('water', Math.floor((cost.water || 0) / 2));
     this.state.addResource('milk', Math.floor((cost.milk || 0) / 2));
 
     building.trainingQueue.splice(index, 1);
     EventBus.emit('training:cancelled', { building });
+  }
+
+  _nearestFort(building) {
+    const forts = this.state.buildings.filter(b => b.configId === 'FORT' && !b.isBuilding);
+    if (forts.length === 0) return null;
+    let best = null;
+    let bestDist = Infinity;
+    const cx = building.col + 1;
+    const cy = building.row + 1;
+    for (const f of forts) {
+      const d = Math.hypot(f.col - cx, f.row - cy);
+      if (d < bestDist) { best = f; bestDist = d; }
+    }
+    return best;
   }
 
   update(dt) {
@@ -83,15 +84,24 @@ export class TrainingSystem {
         building.trainingQueue.shift();
         building.trainingProgress = 0;
 
-        // Spawn troop near the building
-        const config = building.getConfig();
-        let spawnCol = building.col + config.tileWidth / 2 + (Math.random() - 0.5) * 2;
-        let spawnRow = building.row + config.tileHeight + 1 + Math.random();
+        // Spawn troop at nearest Fort entry (or near training camp if no fort)
+        const fort = this._nearestFort(building);
+        let spawnCol, spawnRow, fortId = null;
 
-        // If there's a rally point, move toward it
+        if (fort) {
+          const cfg = fort.getConfig();
+          spawnCol = fort.col + cfg.tileWidth / 2 + (Math.random() - 0.5);
+          spawnRow = fort.row + cfg.tileHeight + 0.5 + Math.random() * 0.5;
+          fortId = fort.id;
+        } else {
+          const config = building.getConfig();
+          spawnCol = building.col + config.tileWidth / 2 + (Math.random() - 0.5) * 2;
+          spawnRow = building.row + config.tileHeight + 1 + Math.random();
+        }
+
         const rallyPoint = this.state.rallyPoints.get(building.id);
-
         const troop = new Troop(current.configId, current.level, spawnCol, spawnRow, building.id);
+        troop.fortId = fortId;
 
         if (rallyPoint) {
           troop.moveTargetCol = rallyPoint.col;
@@ -101,7 +111,6 @@ export class TrainingSystem {
 
         this.state.troops.push(troop);
 
-        // Award Dog Coin + XP Bones for training
         this.state.addDogCoins(1);
         this.state.addXP(5);
 
