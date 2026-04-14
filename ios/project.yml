@@ -60,7 +60,7 @@ targets:
     platform: iOS
     deploymentTarget: "17.0"
     sources:
-      - path: ../BiteDefenseTests
+      - path: BiteDefenseTests
     dependencies:
       - target: BiteDefense
     settings:

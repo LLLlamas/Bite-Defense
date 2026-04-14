@@ -268,13 +268,15 @@ Each milestone is independently verifiable. The JS version stays playable in the
 
 **Done =** GHA build is green, screenshot artifact shows the grass scene with the label.
 
-### M2 — Isometric tile map + camera (2 days)
-- Port `IsoMath.swift`
-- `IsoTileMap` draws a 30×30 grass grid with pre-rendered tile texture
-- Pinch-zoom and pan gestures on the SKCameraNode
-- Tap emits (col, row) via EventBus
+### M2 — Isometric tile map + camera ✅
+- `IsoMath.swift` — flat top-down grid math (32px squares, matching the JS reference; "iso" naming kept for plan parity)
+- `EventBus.swift` — Combine `PassthroughSubject<GameEvent>` with typed cases
+- `IsoTileMap.swift` — 30×30 grass tiles using 4 cached `SKTexture`s (one per grass shade), seeded per-tile color match
+- `InputHandler.swift` — UIKit pan/pinch/tap on the `SKView`, drives `SKCameraNode`, emits `tileTapped` + `cameraMoved`
+- `GameScene` hosts camera + tile map + a debug HUD label (zoom / cam position / last tapped tile)
+- Unit tests for `IsoMath` round-trip and tile picking
 
-**Done =** you can pan/zoom a grass field and tap tiles to log coordinates.
+**Done =** Simulator screenshot shows the green 30×30 grid; you can pan, pinch-zoom, and the debug label updates with the tapped tile's (col, row).
 
 ### M3 — Static building art (2 days)
 - Port `BuildingSprites.swift` for: HQ, Training Camp, Fort, Water Well, Milk Farm, Archer Tower, Wall
