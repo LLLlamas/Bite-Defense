@@ -92,7 +92,7 @@ export class InputHandler {
       if (prev) {
         const dx = touch.clientX - prev.x;
         const dy = touch.clientY - prev.y;
-        if (Math.abs(dx) + Math.abs(dy) > 4) this.touchMoved = true;
+        if (Math.abs(dx) + Math.abs(dy) > 2) this.touchMoved = true;
         // Only pan if there's been deliberate movement
         if (this.touchMoved) this.camera.pan(dx, dy);
         this.touches[touch.identifier] = { x: touch.clientX, y: touch.clientY };

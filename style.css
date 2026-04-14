@@ -97,6 +97,30 @@ body {
 .resource.flash-down .resource-value { animation: flash-down-anim 0.65s ease-out; }
 .resource.flash-up .resource-value { animation: flash-up-anim 0.65s ease-out; }
 
+/* Floating resource popups that fly to the HUD */
+.res-floater {
+  position: fixed;
+  z-index: 200;
+  pointer-events: none;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 18px;
+  text-shadow: 2px 2px 0 rgba(0,0,0,0.7), 0 0 6px rgba(0,0,0,0.6);
+  transform: translate(0, 0) scale(1);
+  opacity: 1;
+  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.8s cubic-bezier(0.5, 0, 1, 1);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.res-floater .rf-icon { font-size: 20px; }
+.res-floater .rf-amount { font-size: 18px; }
+.res-floater.res-gain .rf-amount { text-shadow: 0 0 8px rgba(100,255,100,0.6), 2px 2px 0 rgba(0,0,0,0.7); }
+.res-floater.res-spend .rf-amount { text-shadow: 0 0 8px rgba(255,120,120,0.6), 2px 2px 0 rgba(0,0,0,0.7); }
+
 .resource-text {
   display: flex;
   flex-direction: column;
@@ -569,6 +593,35 @@ body {
 }
 #difficulty-desc { font-size: 11px; color: #b8a87f; }
 
+/* Speed control (shown during battle only) */
+#speed-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  margin-bottom: 6px;
+}
+#speed-control.hidden { display: none; }
+.speed-buttons { display: flex; gap: 3px; }
+.speed-btn {
+  background: rgba(0,0,0,0.4);
+  border: 2px solid var(--gold-deep);
+  color: #f0eada;
+  padding: 4px 8px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 1px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.speed-btn.selected {
+  background: var(--gold);
+  color: #1a1a1a;
+  border-color: var(--gold);
+  box-shadow: 0 0 10px rgba(255, 210, 102, 0.6);
+}
+.speed-btn:hover:not(.selected) { border-color: var(--gold); color: var(--gold); }
+
 #store-toggle-btn {
   background: linear-gradient(180deg, #c084e0 0%, #7b3c98 100%);
   color: #fff;
@@ -703,7 +756,16 @@ body {
   display: flex;
   gap: 10px;
   justify-content: center;
+  align-items: flex-start;
 }
+.pc-pay-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+  min-width: 140px;
+}
+.pc-pay-col .btn { white-space: nowrap; }
 .pc-confirm {
   background: linear-gradient(180deg, #5fd070 0%, #229954 100%);
 }

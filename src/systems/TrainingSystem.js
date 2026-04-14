@@ -96,30 +96,23 @@ export class TrainingSystem {
         building.trainingQueue.shift();
         building.trainingProgress = 0;
 
-        // Spawn troop at nearest Fort entry (or near training camp if no fort)
+        // Troops go directly into GARRISONED state — they only appear on the map at battle time
         const fort = this._nearestFort(building);
         let spawnCol, spawnRow, fortId = null;
-
         if (fort) {
           const cfg = fort.getConfig();
-          spawnCol = fort.col + cfg.tileWidth / 2 + (Math.random() - 0.5);
-          spawnRow = fort.row + cfg.tileHeight + 0.5 + Math.random() * 0.5;
+          spawnCol = fort.col + cfg.tileWidth / 2;
+          spawnRow = fort.row + cfg.tileHeight / 2;
           fortId = fort.id;
         } else {
           const config = building.getConfig();
-          spawnCol = building.col + config.tileWidth / 2 + (Math.random() - 0.5) * 2;
-          spawnRow = building.row + config.tileHeight + 1 + Math.random();
+          spawnCol = building.col + config.tileWidth / 2;
+          spawnRow = building.row + config.tileHeight / 2;
         }
 
-        const rallyPoint = this.state.rallyPoints.get(building.id);
         const troop = new Troop(current.configId, current.level, spawnCol, spawnRow, building.id);
         troop.fortId = fortId;
-
-        if (rallyPoint) {
-          troop.moveTargetCol = rallyPoint.col;
-          troop.moveTargetRow = rallyPoint.row;
-          troop.state = 'REPOSITIONING';
-        }
+        troop.state = 'GARRISONED';
 
         this.state.troops.push(troop);
 

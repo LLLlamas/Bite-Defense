@@ -6,7 +6,7 @@ export class Camera {
     this.y = 0;
     this.zoom = 1.0;
     // Tighter zoom range so you can't shrink the map too much
-    this.minZoom = 0.7;
+    this.minZoom = 0.5;
     this.maxZoom = 1.5;
     this.screenW = canvas.width;
     this.screenH = canvas.height;

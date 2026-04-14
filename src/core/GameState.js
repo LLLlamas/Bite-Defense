@@ -15,6 +15,7 @@ export class GameState {
     this.waveActive = false;
     this.selectedDifficulty = 1; // starts at 1, unlock higher by beating waves
     this.maxDifficultyUnlocked = 1;
+    this.gameSpeed = 1; // 1x, 2x, 4x — scales dt during battle (admin/testing)
 
     this.phase = PHASE.BUILDING;
 

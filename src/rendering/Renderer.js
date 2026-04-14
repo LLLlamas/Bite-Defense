@@ -59,10 +59,10 @@ export class Renderer {
     // Corner tile position
     let col, row, angle;
     switch (corner) {
-      case 0: col = 1; row = 1; angle = -Math.PI * 3 / 4; break; // top-left, arrow points up-left (outward)
-      case 1: col = GRID_SIZE - 2; row = 1; angle = -Math.PI / 4; break; // top-right
-      case 2: col = 1; row = GRID_SIZE - 2; angle = Math.PI * 3 / 4; break; // bottom-left
-      case 3: col = GRID_SIZE - 2; row = GRID_SIZE - 2; angle = Math.PI / 4; break; // bottom-right
+      case 0: col = 4; row = 4; angle = -Math.PI * 3 / 4; break; // top-left, arrow points up-left (outward)
+      case 1: col = GRID_SIZE - 5; row = 4; angle = -Math.PI / 4; break; // top-right
+      case 2: col = 4; row = GRID_SIZE - 5; angle = Math.PI * 3 / 4; break; // bottom-left
+      case 3: col = GRID_SIZE - 5; row = GRID_SIZE - 5; angle = Math.PI / 4; break; // bottom-right
       default: return;
     }
 

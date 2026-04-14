@@ -100,6 +100,10 @@
         <span class="bp-info-label">Troops</span>
         <span class="bp-info-value" id="bp-troops">0</span>
       </div>
+      <div class="bp-info-row" id="bp-incoming-row">
+        <span class="bp-info-label">🐱 Cats</span>
+        <span class="bp-info-value" id="bp-incoming">-</span>
+      </div>
     </div>
 
     <div class="bp-section bp-center">
@@ -126,6 +130,14 @@
     </div>
 
     <div class="bp-section bp-actions">
+      <div id="speed-control" class="hidden">
+        <span class="bp-info-label">Speed</span>
+        <div class="speed-buttons">
+          <button class="speed-btn selected" data-speed="1">1×</button>
+          <button class="speed-btn" data-speed="2">2×</button>
+          <button class="speed-btn" data-speed="4">4×</button>
+        </div>
+      </div>
       <button id="store-toggle-btn">🛒 Store</button>
     </div>
   </div>

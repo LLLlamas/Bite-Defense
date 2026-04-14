@@ -1,7 +1,8 @@
 import { EventBus } from '../core/EventBus.js';
 import { BUILDINGS } from '../data/BuildingConfig.js';
 import { TROOPS } from '../data/TroopConfig.js';
-import { DIFFICULTY } from '../core/Constants.js';
+import { DIFFICULTY, PHASE } from '../core/Constants.js';
+import { spawnFloatingResource } from './FloatingResources.js';
 
 const BUILDING_ICONS = {
   DOG_HQ: '🏛️',
@@ -93,6 +94,8 @@ export class UIManager {
     this.bpWave = document.getElementById('bp-wave');
     this.bpDifficulty = document.getElementById('bp-difficulty');
     this.bpTroops = document.getElementById('bp-troops');
+    this.bpIncoming = document.getElementById('bp-incoming');
+    this.speedControl = document.getElementById('speed-control');
 
     // Placement confirm tray
     this.placementConfirm = document.getElementById('placement-confirm');
@@ -114,6 +117,17 @@ export class UIManager {
 
     // Placement confirm tray — cancel
     this.pcCancelBtn.addEventListener('click', () => EventBus.emit('placement:doCancel'));
+
+    // Speed control buttons
+    document.querySelectorAll('.speed-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const speed = parseInt(btn.dataset.speed);
+        this.state.gameSpeed = speed;
+        document.querySelectorAll('.speed-btn').forEach(b => {
+          b.classList.toggle('selected', parseInt(b.dataset.speed) === speed);
+        });
+      });
+    });
   }
 
   _setupDifficultySelector() {
@@ -173,22 +187,40 @@ export class UIManager {
     EventBus.on('training:cancelled', () => this._updateTrainingPanel());
     EventBus.on('difficulty:unlocked', () => this._updateDifficultyUI());
 
+    EventBus.on('phase:preBattle', () => {
+      // Speed control visible during pre-battle and battle
+      this.speedControl?.classList.remove('hidden');
+      this._updateIncomingCount();
+    });
+
     EventBus.on('wave:started', ({ wave }) => {
       this.waveStartBtn.classList.add('hidden');
       this.difficultySelector.classList.add('hidden');
       this.preBattleControls.classList.add('hidden');
       this.waveStatus.classList.remove('hidden');
       this.waveStatus.textContent = `Wave ${wave} in progress...`;
+      this.speedControl?.classList.remove('hidden');
+      this._updateIncomingCount();
     });
+
+    EventBus.on('wave:enemySpawned', () => this._updateIncomingCount());
 
     EventBus.on('wave:complete', ({ wave, bonus }) => {
       this.waveStartBtn.classList.remove('hidden');
       this.waveStartBtn.textContent = `Start Wave ${wave + 1}`;
       this.difficultySelector.classList.remove('hidden');
       this.waveStatus.classList.add('hidden');
+      this.speedControl?.classList.add('hidden');
+      this.state.gameSpeed = 1;
+      document.querySelectorAll('.speed-btn').forEach(b => {
+        b.classList.toggle('selected', b.dataset.speed === '1');
+      });
       this.updateHUD();
       this._updateDifficultyUI();
-      if (bonus) this._showRewardPopup(wave, bonus);
+      this._updateIncomingCount();
+      // Animate gained resources flying to their HUD slots
+      if (bonus) this._animateRewardGain(bonus);
+      if (bonus) setTimeout(() => this._showRewardPopup(wave, bonus), 1200);
     });
 
     EventBus.on('wave:failed', ({ wave, waterStolen, milkStolen, theftPct }) => {
@@ -196,6 +228,8 @@ export class UIManager {
       this.waveStartBtn.textContent = `Retry Wave ${wave}`;
       this.difficultySelector.classList.remove('hidden');
       this.preBattleControls.classList.add('hidden');
+      this.speedControl?.classList.add('hidden');
+      this.state.gameSpeed = 1;
       const stolenMsg = (waterStolen || milkStolen)
         ? `Cats stole ${waterStolen} Water, ${milkStolen} Milk (${theftPct}%)`
         : `Your troops fell.`;
@@ -203,6 +237,7 @@ export class UIManager {
       this.waveStatus.classList.remove('hidden');
       this.state.currentWave--;
       this.updateHUD();
+      this._updateIncomingCount();
       setTimeout(() => { this.waveStatus.classList.add('hidden'); }, 5000);
     });
 
@@ -272,6 +307,7 @@ export class UIManager {
       const alive = this.state.troops.filter(t => t.state !== 'DEAD').length;
       this.bpTroops.textContent = alive;
     }
+    this._updateIncomingCount();
   }
 
   _showPlacementConfirm(hasCandidate) {
@@ -297,43 +333,40 @@ export class UIManager {
     }
     this.pcInfo.innerHTML = msg;
 
-    // Two pay buttons
+    // Two pay buttons (with per-resource top-up below if short)
     this.pcPayButtons.innerHTML = '';
-    const waterBtn = document.createElement('button');
-    waterBtn.className = 'btn pc-pay-water';
-    waterBtn.innerHTML = `💧 Pay ${cost.amount} Water`;
-    waterBtn.disabled = !hasCandidate || !hasWater;
-    waterBtn.addEventListener('click', () => {
-      EventBus.emit('placement:doConfirm', { resource: 'water' });
-    });
 
-    const milkBtn = document.createElement('button');
-    milkBtn.className = 'btn pc-pay-milk';
-    milkBtn.innerHTML = `🥛 Pay ${cost.amount} Milk`;
-    milkBtn.disabled = !hasCandidate || !hasMilk;
-    milkBtn.addEventListener('click', () => {
-      EventBus.emit('placement:doConfirm', { resource: 'milk' });
-    });
+    const makeColumn = (resource, label, emoji, btnClass, has) => {
+      const col = document.createElement('div');
+      col.className = 'pc-pay-col';
 
-    this.pcPayButtons.appendChild(waterBtn);
-    this.pcPayButtons.appendChild(milkBtn);
-
-    // Top-up option if neither resource has enough
-    if (!hasWater && !hasMilk) {
-      const shortW = cost.amount - this.state.resources.water;
-      const shortM = cost.amount - this.state.resources.milk;
-      const smaller = Math.min(shortW, shortM);
-      const bonesNeeded = Math.ceil(smaller / 25);
-      const whichRes = shortW <= shortM ? 'Water' : 'Milk';
-      const topup = document.createElement('button');
-      topup.className = 'btn btn-topup';
-      topup.innerHTML = `⚡ Top up ${smaller} ${whichRes} (${bonesNeeded} <span class="cost-bones">Premium Bones</span>)`;
-      topup.addEventListener('click', () => {
-        const result = this.state.topUpShortfallFlex(cost.amount);
-        if (result.ok) this._showPlacementConfirm(hasCandidate);
+      const payBtn = document.createElement('button');
+      payBtn.className = 'btn ' + btnClass;
+      payBtn.innerHTML = `${emoji} Pay ${cost.amount} ${label}`;
+      payBtn.disabled = !hasCandidate || !has;
+      payBtn.addEventListener('click', () => {
+        EventBus.emit('placement:doConfirm', { resource });
       });
-      this.pcPayButtons.appendChild(topup);
-    }
+      col.appendChild(payBtn);
+
+      if (!has) {
+        const have = this.state.resources[resource];
+        const short = cost.amount - have;
+        const bonesNeeded = Math.ceil(short / 25);
+        const topup = document.createElement('button');
+        topup.className = 'btn btn-topup';
+        topup.innerHTML = `⚡ +${short} ${label} (${bonesNeeded} <span class="cost-bones">Bones</span>)`;
+        topup.addEventListener('click', () => {
+          const result = this.state.topUpShortfall(cost.amount, resource);
+          if (result.ok) this._showPlacementConfirm(hasCandidate);
+        });
+        col.appendChild(topup);
+      }
+      return col;
+    };
+
+    this.pcPayButtons.appendChild(makeColumn('water', 'Water', '💧', 'pc-pay-water', hasWater));
+    this.pcPayButtons.appendChild(makeColumn('milk', 'Milk', '🥛', 'pc-pay-milk', hasMilk));
 
     this.placementConfirm.classList.remove('hidden');
   }
@@ -727,6 +760,59 @@ export class UIManager {
     this.preBattleControls.classList.add('hidden');
     this.waveStartBtn.classList.remove('hidden');
     this.difficultySelector.classList.remove('hidden');
+    this.speedControl?.classList.add('hidden');
+    this._updateIncomingCount();
+  }
+
+  _updateIncomingCount() {
+    if (!this.bpIncoming) return;
+    if (this.state.phase === PHASE.PRE_BATTLE) {
+      // Peek the upcoming wave before it spawns
+      const next = this.state.currentWave + 1;
+      const preview = this._previewUpcomingCount(next, this.state.selectedDifficulty);
+      this.bpIncoming.textContent = `${preview}`;
+    } else if (this.state.phase === PHASE.BATTLE) {
+      const total = this.state.enemies.length +
+        (this.waveSystem.pendingSpawns ? this.waveSystem.pendingSpawns.length : 0);
+      this.bpIncoming.textContent = `${total}`;
+    } else {
+      this.bpIncoming.textContent = '-';
+    }
+  }
+
+  _previewUpcomingCount(waveNumber, difficulty) {
+    // Mirror WaveConfig.generateWave's enemy-count logic (deterministic counts)
+    // 3 + floor(waveNumber * 1.5), scaled by enemyMult, + tank cats from wave 3
+    const diff = DIFFICULTY[difficulty] || DIFFICULTY[1];
+    const baseCount = Math.round((3 + Math.floor(waveNumber * 1.5)) * diff.enemyMult);
+    let total = baseCount;
+    if (waveNumber >= 3) {
+      const tankCount = Math.max(1, Math.round((Math.floor((waveNumber - 2) / 2) + 1) * diff.enemyMult));
+      total += tankCount;
+    }
+    return total;
+  }
+
+  _animateRewardGain(bonus) {
+    // Stagger the pops so they read clearly
+    const mapCenterX = window.innerWidth / 2;
+    const mapCenterY = window.innerHeight / 2;
+    let delay = 0;
+
+    const pop = (amount, resource) => {
+      if (!amount || amount <= 0) return;
+      setTimeout(() => {
+        // Random nudge around center for a scatter effect
+        const sx = mapCenterX + (Math.random() - 0.5) * 160;
+        const sy = mapCenterY + (Math.random() - 0.5) * 60;
+        spawnFloatingResource(amount, resource, sx, sy, true);
+      }, delay);
+      delay += 180;
+    };
+
+    pop(Math.floor(bonus.water || 0), 'water');
+    pop(Math.floor((bonus.milk || 0) * 0.6), 'milk'); // matches actual milk awarded (0.6x)
+    pop(bonus.dogCoins || 0, 'dogCoins');
   }
 
   _showRewardPopup(wave, bonus) {

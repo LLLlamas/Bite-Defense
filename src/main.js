@@ -18,6 +18,7 @@ import { TroopPlacementSystem } from './systems/TroopPlacementSystem.js';
 import { UIManager } from './ui/UIManager.js';
 import { BUILDINGS } from './data/BuildingConfig.js';
 import { Troop } from './entities/Troop.js';
+import { spawnFromTile, spawnFloatingResource } from './ui/FloatingResources.js';
 
 // --- Bootstrap ---
 const canvas = document.getElementById('gameCanvas');
@@ -226,20 +227,11 @@ EventBus.on('placement:doConfirm', (data) => {
   const spent = gameState.spendFlex(cost, chosen);
   if (!spent) return;
 
-  // Floating "-X Water/Milk" animation at the building location
+  // Floating "-X 💧" animation flies from the building location up to the HUD icon
   const usedResource = chosen || gameState.preferredResource(cost);
   const centerCol = col + config.tileWidth / 2;
   const centerRow = row + config.tileHeight / 2;
-  const label = usedResource === 'milk' ? `-${cost.amount} 🥛` : `-${cost.amount} 💧`;
-  gameState.effects.push({
-    type: 'spend',
-    col: centerCol,
-    row: centerRow,
-    value: label,
-    resource: usedResource,
-    progress: 0,
-    duration: 1.4,
-  });
+  spawnFromTile(cost.amount, usedResource, centerCol, centerRow, camera, false);
 
   buildingSystem.placeBuilding(pm.configId, col, row);
   gameState.placementMode = null;
@@ -304,12 +296,15 @@ EventBus.on('building:placed', () => {
 
 // --- Game Loop ---
 function update(dt) {
+  // Battle-time systems scale with gameSpeed (admin/testing speedup)
+  const battleDt = dt * (gameState.gameSpeed || 1);
+
   buildingSystem.update(dt);
   resourceSystem.update(dt);
   trainingSystem.update(dt);
-  troopPlacement.update(dt);
-  waveSystem.update(dt);
-  combatSystem.update(dt);
+  troopPlacement.update(battleDt);
+  waveSystem.update(battleDt);
+  combatSystem.update(battleDt);
 
   // Auto-save every 30 seconds
   gameState.saveTimer += dt;
