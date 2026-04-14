@@ -28,6 +28,10 @@ final class GameScene: SKScene {
         map.build(in: view)
         tileMap = map
 
+        // M3 demo: hardcode one of every building type so we can verify the art.
+        // Replaced by `BuildingSystem` placement in M4.
+        addDemoBuildings(in: view)
+
         // Debug HUD label as a child of the camera so it stays glued to the screen.
         let label = SKLabelNode(fontNamed: "Menlo-Bold")
         label.fontSize = 14
@@ -64,6 +68,24 @@ final class GameScene: SKScene {
             break
         }
         refreshDebugLabel()
+    }
+
+    private func addDemoBuildings(in view: SKView) {
+        let demos: [(BuildingType, Int, Int, Int)] = [
+            (.dogHQ,        13, 13, 5),
+            (.trainingCamp,  9, 13, 3),
+            (.fort,         17, 13, 3),
+            (.waterWell,     9, 16, 4),
+            (.milkFarm,     12, 16, 2),
+            (.archerTower,  16, 16, 1),
+            (.wall,         18, 16, 1),
+            (.wall,         18, 17, 1),
+            (.wall,         18, 18, 1)
+        ]
+        for (type, col, row, level) in demos {
+            let b = Building(type: type, col: col, row: row, level: level, view: view)
+            addChild(b)
+        }
     }
 
     private func refreshDebugLabel() {

@@ -278,12 +278,14 @@ Each milestone is independently verifiable. The JS version stays playable in the
 
 **Done =** Simulator screenshot shows the green 30×30 grid; you can pan, pinch-zoom, and the debug label updates with the tapped tile's (col, row).
 
-### M3 — Static building art (2 days)
-- Port `BuildingSprites.swift` for: HQ, Training Camp, Fort, Water Well, Milk Farm, Archer Tower, Wall
-- Each building is an SKNode with its procedural art baked into a texture
-- Hard-code one of each on the map; no placement system yet
+### M3 — Static building art ✅
+- `BuildingConfig.swift` — `BuildingType` enum + per-type `BuildingDef` (footprint, palette, emoji, max level). M4 will add cost/build-time/HP arrays.
+- `BuildingSprites.swift` — bakes shadow + body + border + top-highlight band into a single cached `SKTexture` per type
+- `Building.swift` (`SKNode` subclass) — body sprite + emoji label + level badge; positioned via `IsoMath.cartToWorld`
+- `GameScene.addDemoBuildings(in:)` hardcodes all 7 building types so the screenshot artifact verifies parity
+- Tests cover footprint values + every type having a definition
 
-**Done =** a test scene with one of every building visible in isometric view, matching the web version's look.
+**Done =** Simulator screenshot shows HQ, Training Camp, Fort, Water Well, Milk Farm, Archer Tower, and a 3-block Wall row in the center of the grid.
 
 ### M4 — Building system + placement flow (3 days)
 - Port `BuildingConfig.swift`, `BuildingSystem.swift`
