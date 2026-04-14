@@ -1,0 +1,85 @@
+name: BiteDefense
+options:
+  bundleIdPrefix: com.bitedefense
+  deploymentTarget:
+    iOS: "17.0"
+  developmentLanguage: en
+  createIntermediateGroups: true
+  groupSortPosition: top
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_STRICT_CONCURRENCY: minimal
+
+targets:
+  BiteDefense:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: BiteDefense
+        excludes:
+          - "**/.DS_Store"
+    resources:
+      - path: BiteDefense/Resources/Assets.xcassets
+      - path: BiteDefense/Resources/LaunchScreen.storyboard
+    info:
+      path: BiteDefense/App/Info.plist
+      properties:
+        CFBundleDisplayName: Bite Defense
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchStoryboardName: LaunchScreen
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+        UIStatusBarStyle: UIStatusBarStyleLightContent
+        UIViewControllerBasedStatusBarAppearance: false
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bitedefense.game
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+
+  BiteDefenseTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: ../BiteDefenseTests
+    dependencies:
+      - target: BiteDefense
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bitedefense.game.tests
+        BUNDLE_LOADER: $(TEST_HOST)
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/BiteDefense.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BiteDefense
+
+schemes:
+  BiteDefense:
+    build:
+      targets:
+        BiteDefense: all
+        BiteDefenseTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - BiteDefenseTests
+    archive:
+      config: Release

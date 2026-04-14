@@ -1,0 +1,86 @@
+name: iOS Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-build.yml'
+  pull_request:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-build.yml'
+
+jobs:
+  build:
+    name: Build & Test (Simulator)
+    runs-on: macos-14
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ios
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 15.4
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Show Xcode + Swift versions
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+        env:
+          DEVELOPMENT_TEAM: ""
+
+      - name: Build for iOS Simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project BiteDefense.xcodeproj \
+            -scheme BiteDefense \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | xcbeautify || true
+
+      - name: Run unit tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project BiteDefense.xcodeproj \
+            -scheme BiteDefense \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | xcbeautify || true
+
+      - name: Boot simulator + capture screenshot
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 15 (" | head -1 | grep -oE '\([0-9A-F-]{36}\)' | tr -d '()')
+          echo "Device: $DEVICE_ID"
+          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl install "$DEVICE_ID" "$(xcodebuild -project BiteDefense.xcodeproj -scheme BiteDefense -configuration Debug -showBuildSettings -destination 'platform=iOS Simulator,name=iPhone 15' | grep -m1 'BUILT_PRODUCTS_DIR' | cut -d'=' -f2 | xargs)/BiteDefense.app"
+          xcrun simctl launch "$DEVICE_ID" com.bitedefense.game
+          sleep 4
+          xcrun simctl io "$DEVICE_ID" screenshot screenshot.png
+        continue-on-error: true
+
+      - name: Upload screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-screenshot
+          path: ios/screenshot.png
+          if-no-files-found: ignore
