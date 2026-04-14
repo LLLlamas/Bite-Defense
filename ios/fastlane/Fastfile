@@ -30,10 +30,15 @@ platform :ios do
     # 2. Pull (or create on first run) the App Store distribution cert + profile.
     #    `readonly: false` lets the first run *create* the cert in the certs repo;
     #    flip to true after the repo is populated for safer re-runs.
+    # NOTE: do not name the input env var `MATCH_READONLY` — fastlane match
+    # picks that up natively and overrides the Ruby arg. Use our own name.
+    match_readonly = ENV["MATCH_READONLY_FLAG"] == "true"
+    UI.message("match readonly = #{match_readonly}")
+
     match(
       type:                       "appstore",
       app_identifier:             [BUNDLE_ID],
-      readonly:                   ENV["MATCH_READONLY"] == "true",
+      readonly:                   match_readonly,
       git_basic_authorization:    ENV["MATCH_GIT_BASIC_AUTHORIZATION"],
       api_key_path:               nil # use the cached app_store_connect_api_key from before_all
     )

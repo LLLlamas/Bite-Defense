@@ -48,7 +48,9 @@ jobs:
           MATCH_PASSWORD:                ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTH }}
           KEYCHAIN_PASSWORD:             ${{ secrets.KEYCHAIN_PASSWORD }}
-          MATCH_READONLY:                ${{ inputs.readonly_match || 'false' }}
+          # Use a custom env var name (NOT MATCH_READONLY — that's fastlane's
+          # own env var and silently overrides Ruby args).
+          MATCH_READONLY_FLAG:           ${{ inputs.readonly_match || 'false' }}
           FASTLANE_HIDE_TIMESTAMP:       "true"
           FASTLANE_SKIP_UPDATE_CHECK:    "true"
         run: bundle exec fastlane beta

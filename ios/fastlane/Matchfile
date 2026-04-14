@@ -4,5 +4,5 @@ storage_mode("git")
 type("appstore") # default; lane overrides if needed
 
 app_identifier(["com.bitedefense.game"])
-username("septemberfinesse@gmail.com") # used only for human-readable logs; auth is via APIs
+username("ltlasian@gmail.com") # used only for human-readable logs; auth is via APIs
 team_id("GYFN949Q5E")
