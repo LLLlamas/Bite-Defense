@@ -1,6 +1,7 @@
 import { EventBus } from '../core/EventBus.js';
 import { generateWave } from '../data/WaveConfig.js';
 import { Enemy } from '../entities/Enemy.js';
+import { TROOPS } from '../data/TroopConfig.js';
 import { GRID_SIZE, PHASE, DIFFICULTY } from '../core/Constants.js';
 
 export class WaveSystem {
@@ -105,10 +106,33 @@ export class WaveSystem {
     if (this.waveData && this.waveData.bonus) {
       const b = this.waveData.bonus;
       this.state.addResource('water', b.water);
-      this.state.addResource('milk', b.milk);
+      // Milk reward is ~40% less than water (milk is the scarce resource)
+      this.state.addResource('milk', Math.floor(b.milk * 0.6));
       this.state.addXP(b.xp);
       this.state.addDogCoins(b.dogCoins);
     }
+
+    // Feed surviving troops — costs water/milk per troop, scaled by level
+    let feedWater = 0, feedMilk = 0;
+    for (const troop of this.state.troops) {
+      if (troop.state === 'DEAD') continue;
+      const config = TROOPS[troop.configId];
+      const feed = config?.feedCost || { water: 3, milk: 0 };
+      feedWater += (feed.water || 0) * troop.level;
+      feedMilk += (feed.milk || 0) * troop.level;
+    }
+    if (feedWater > 0) {
+      this.state.resources.water = Math.max(0, this.state.resources.water - feedWater);
+    }
+    if (feedMilk > 0) {
+      this.state.resources.milk = Math.max(0, this.state.resources.milk - feedMilk);
+    }
+    if (feedWater > 0 || feedMilk > 0) {
+      EventBus.emit('resource:changed', this.state.resources);
+    }
+
+    // Unlock next difficulty if the player beat the current max
+    this.state.unlockNextDifficulty();
 
     // Return surviving troops to their Fort
     const forts = this.state.buildings.filter(b => b.configId === 'FORT' && !b.isBuilding);

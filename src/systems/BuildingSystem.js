@@ -64,7 +64,7 @@ export class BuildingSystem {
     EventBus.emit('building:removed', { building });
   }
 
-  startUpgrade(buildingId) {
+  startUpgrade(buildingId, resourceChoice = null) {
     const building = this.state.buildings.find(b => b.id === buildingId);
     if (!building) return false;
 
@@ -72,7 +72,6 @@ export class BuildingSystem {
     if (building.level >= config.maxLevel) return false;
     if (this.state.activeBuilds >= this.state.builderSlots) return false;
 
-    // Check cost based on whether this building uses coins or resources
     if (config.upgradeUsesCoins) {
       const coinCost = config.upgradeCoinCost[building.level];
       if (coinCost === undefined || !this.state.canAffordCoins(coinCost)) return false;
@@ -80,14 +79,34 @@ export class BuildingSystem {
     } else {
       const cost = building.getUpgradeCost();
       if (!cost) return false;
-      if (!this.state.canAfford(cost)) return false;
-      this.state.spend(cost);
+      if (!this.state.canAffordFlex(cost)) return false;
+      if (!this.state.spendFlex(cost, resourceChoice)) return false;
     }
 
     building.startUpgrade();
     this.state.activeBuilds++;
     EventBus.emit('building:upgradeStarted', { building });
     return true;
+  }
+
+  // Instantly complete a build/upgrade by spending Premium Bones
+  speedUp(buildingId) {
+    const building = this.state.buildings.find(b => b.id === buildingId);
+    if (!building || !building.isBuilding) return false;
+
+    const bonesCost = this._speedUpCost(building.buildTimeRemaining);
+    if (!this.state.canAffordPremium(bonesCost)) return false;
+    this.state.spendPremiumBones(bonesCost);
+
+    building.buildTimeRemaining = 0;
+    building.buildProgress = 1;
+    return true;
+  }
+
+  _speedUpCost(secondsRemaining) {
+    // 2 Premium Bones per minute, minimum 1
+    const minutes = Math.ceil(secondsRemaining / 60);
+    return Math.max(1, minutes * 2);
   }
 
   update(dt) {

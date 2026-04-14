@@ -5,7 +5,13 @@ export const TILE_SIZE = 32;
 export const TILE_WIDTH = TILE_SIZE;
 export const TILE_HEIGHT = TILE_SIZE;
 
-export const STARTING_RESOURCES = { water: 200, milk: 200, dogCoins: 5 };
+export const STARTING_RESOURCES = { water: 250, milk: 250, dogCoins: 5 };
+
+// Cost to speed-up 1 minute of remaining time (in Premium Bones)
+export const SPEEDUP_BONES_PER_MINUTE = 2;
+
+// Admin mode: unlimited Premium Bones for testing
+export const ADMIN_MODE = true;
 export const BUILDER_SLOTS = 2;
 
 // Storage caps per HQ level (index = level - 1)

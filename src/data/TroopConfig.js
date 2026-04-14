@@ -1,24 +1,28 @@
+// Troop train costs are {amount: N} - paid in EITHER water OR milk (player's choice).
 export const TROOPS = {
   SOLDIER: {
     id: 'SOLDIER',
     name: 'Soldier Dog',
     type: 'melee',
-    hp:     [50, 70, 95, 130, 175],
+    // Soldiers have higher HP than archers
+    hp:     [60, 85, 115, 155, 210],
     damage: [10, 14, 19, 26, 35],
-    speed:  [1.5, 1.6, 1.7, 1.8, 2.0], // tiles per second
+    speed:  [1.5, 1.6, 1.7, 1.8, 2.0],
     range:  [1.2, 1.2, 1.2, 1.2, 1.2],
-    attackSpeed: [0.8, 0.75, 0.7, 0.65, 0.6], // seconds between attacks
-    trainTime:   [10, 15, 22, 32, 45],          // seconds
+    attackSpeed: [0.8, 0.75, 0.7, 0.65, 0.6],
+    trainTime:   [8, 15, 25, 40, 60],
     trainCost: [
-      { water: 20, milk: 10 },
-      { water: 35, milk: 20 },
-      { water: 60, milk: 35 },
-      { water: 100, milk: 60 },
-      { water: 170, milk: 100 },
+      { amount: 25 },
+      { amount: 55 },
+      { amount: 95 },
+      { amount: 160 },
+      { amount: 270 },
     ],
+    // Post-fight feeding cost per survival (both water AND milk)
+    feedCost: { water: 3, milk: 2 },
     maxLevel: 5,
     color: '#CD853F',
-    description: 'Melee fighter. Tough and reliable.',
+    description: 'Melee fighter. Tough. Eats both water and milk.',
   },
 
   ARCHER: {
@@ -28,18 +32,21 @@ export const TROOPS = {
     hp:     [30, 42, 58, 80, 110],
     damage: [8, 12, 17, 24, 33],
     speed:  [1.2, 1.3, 1.4, 1.5, 1.6],
-    range:  [4, 4.5, 5, 5.5, 6],
+    // Range scales 3 → 11 squares (3,5,7,9,11)
+    range:  [3, 5, 7, 9, 11],
     attackSpeed: [1.0, 0.95, 0.9, 0.85, 0.8],
-    trainTime:   [15, 22, 32, 45, 60],
+    trainTime:   [12, 22, 35, 55, 80],
     trainCost: [
-      { water: 15, milk: 20 },
-      { water: 30, milk: 40 },
-      { water: 55, milk: 70 },
-      { water: 95, milk: 120 },
-      { water: 160, milk: 200 },
+      { amount: 35 },
+      { amount: 70 },
+      { amount: 125 },
+      { amount: 215 },
+      { amount: 360 },
     ],
+    // Archers drink only water
+    feedCost: { water: 3, milk: 0 },
     maxLevel: 5,
     color: '#228B22',
-    description: 'Ranged attacker. Weak but strikes from afar.',
+    description: 'Ranged attacker. Strikes 3-11 squares away. Drinks only water.',
   },
 };

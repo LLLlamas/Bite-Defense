@@ -98,12 +98,14 @@ export class CombatSystem {
     }
   }
 
-  // Cats chase nearest troop and attack. No HQ damage — wave fail handled by WaveSystem.
+  // Cats chase nearest troop. If no troops, target HQ.
   _updateEnemies(dt) {
+    const hq = this.state.buildings.find(b => b.configId === 'DOG_HQ');
+
     for (const enemy of this.state.enemies) {
       if (enemy.state === 'DEAD') continue;
 
-      // Find nearest alive troop globally (not just in range)
+      // Find nearest alive troop globally
       let nearest = null;
       let nearestDist = Infinity;
 
@@ -116,38 +118,52 @@ export class CombatSystem {
         }
       }
 
-      if (!nearest) {
-        // No troops left — wander toward base center (they'll be cleaned up by WaveSystem failure logic)
-        enemy.state = 'MOVING';
-        const cx = 15, cy = 15;
-        const dx = cx - enemy.col;
-        const dy = cy - enemy.row;
-        const dist = Math.hypot(dx, dy);
-        if (dist > 0.01) {
-          enemy.col += (dx / dist) * enemy.speed * dt;
-          enemy.row += (dy / dist) * enemy.speed * dt;
+      if (nearest) {
+        if (nearestDist <= enemy.range) {
+          enemy.state = 'ATTACKING';
+          enemy.attackCooldown -= dt;
+          if (enemy.attackCooldown <= 0) {
+            nearest.takeDamage(enemy.damage);
+            this.state.addEffect('damage', nearest.col, nearest.row, enemy.damage);
+            enemy.attackCooldown = enemy.attackSpeed;
+          }
+        } else {
+          enemy.state = 'MOVING';
+          const dx = nearest.col - enemy.col;
+          const dy = nearest.row - enemy.row;
+          const dist = Math.hypot(dx, dy);
+          if (dist > 0) {
+            enemy.col += (dx / dist) * enemy.speed * dt;
+            enemy.row += (dy / dist) * enemy.speed * dt;
+          }
         }
         continue;
       }
 
-      if (nearestDist <= enemy.range) {
-        // Attack
-        enemy.state = 'ATTACKING';
-        enemy.attackCooldown -= dt;
-        if (enemy.attackCooldown <= 0) {
-          nearest.takeDamage(enemy.damage);
-          this.state.addEffect('damage', nearest.col, nearest.row, enemy.damage);
-          enemy.attackCooldown = enemy.attackSpeed;
-        }
-      } else {
-        // Chase nearest troop
-        enemy.state = 'MOVING';
-        const dx = nearest.col - enemy.col;
-        const dy = nearest.row - enemy.row;
-        const dist = Math.hypot(dx, dy);
-        if (dist > 0) {
-          enemy.col += (dx / dist) * enemy.speed * dt;
-          enemy.row += (dy / dist) * enemy.speed * dt;
+      // No troops alive — attack HQ
+      if (hq && hq.hp > 0) {
+        const hqCfg = hq.getConfig();
+        const hqCX = hq.col + hqCfg.tileWidth / 2;
+        const hqCY = hq.row + hqCfg.tileHeight / 2;
+        const distToHQ = Math.hypot(enemy.col - hqCX, enemy.row - hqCY);
+
+        if (distToHQ <= enemy.range + 1) {
+          enemy.state = 'ATTACKING';
+          enemy.attackCooldown -= dt;
+          if (enemy.attackCooldown <= 0) {
+            hq.hp = Math.max(0, hq.hp - enemy.damage);
+            this.state.addEffect('damage', hqCX, hqCY, enemy.damage);
+            enemy.attackCooldown = enemy.attackSpeed;
+          }
+        } else {
+          enemy.state = 'MOVING';
+          const dx = hqCX - enemy.col;
+          const dy = hqCY - enemy.row;
+          const dist = Math.hypot(dx, dy);
+          if (dist > 0) {
+            enemy.col += (dx / dist) * enemy.speed * dt;
+            enemy.row += (dy / dist) * enemy.speed * dt;
+          }
         }
       }
     }

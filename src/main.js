@@ -52,8 +52,11 @@ function loadGame() {
   gameState.playerXP = save.playerXP || 0;
   gameState.currentWave = save.currentWave || 0;
   gameState.dogCoins = save.dogCoins || 0;
-  gameState.resources.water = save.resources?.water || 200;
-  gameState.resources.milk = save.resources?.milk || 200;
+  gameState.resources.water = save.resources?.water ?? 250;
+  gameState.resources.milk = save.resources?.milk ?? 250;
+  if (save.maxDifficultyUnlocked) gameState.maxDifficultyUnlocked = save.maxDifficultyUnlocked;
+  if (save.selectedDifficulty) gameState.selectedDifficulty = Math.min(save.selectedDifficulty, gameState.maxDifficultyUnlocked);
+  if (!gameState.adminMode && save.premiumBones !== undefined) gameState.premiumBones = save.premiumBones;
 
   // Rebuild buildings on the grid
   if (save.buildings && save.buildings.length > 0) {
@@ -112,8 +115,7 @@ if (!loaded) {
   buildingSystem.placeBuilding('DOG_HQ', 13, 14, true);
 }
 
-// Show difficulty selector from the start
-document.getElementById('difficulty-selector').classList.remove('hidden');
+// Difficulty selector starts visible (no hidden class on it now)
 
 // UI
 const uiManager = new UIManager(gameState, buildingSystem, trainingSystem, waveSystem, troopPlacement);
@@ -128,21 +130,13 @@ EventBus.on('input:click', ({ col, row }) => {
     return;
   }
 
-  // If in placement mode, try to place building
+  // If in placement mode, set the candidate position (require Confirm)
   if (gameState.placementMode) {
     const pm = gameState.placementMode;
-
     if (!buildingSystem.canPlace(pm.configId, col, row)) return;
-
-    const config = BUILDINGS[pm.configId];
-    const cost = config.costs[0];
-    if (!gameState.canAfford(cost)) return;
-
-    if (gameState.activeBuilds >= gameState.builderSlots && config.buildTime[0] > 0) return;
-
-    gameState.spend(cost);
-    buildingSystem.placeBuilding(pm.configId, col, row);
-    gameState.placementMode = null;
+    pm.candidateCol = col;
+    pm.candidateRow = row;
+    EventBus.emit('placement:candidate', { col, row });
     return;
   }
 
@@ -211,6 +205,32 @@ canvas.addEventListener('contextmenu', () => {
     gameState.selectedTroop.selected = false;
     gameState.selectedTroop = null;
   }
+});
+
+// Placement confirm/cancel handlers
+EventBus.on('placement:doConfirm', () => {
+  const pm = gameState.placementMode;
+  if (!pm || pm.candidateCol === undefined) return;
+  const col = pm.candidateCol;
+  const row = pm.candidateRow;
+
+  if (!buildingSystem.canPlace(pm.configId, col, row)) {
+    return;
+  }
+  const config = BUILDINGS[pm.configId];
+  const cost = config.costs[0];
+  if (!gameState.canAffordFlex(cost)) return;
+  if (gameState.activeBuilds >= gameState.builderSlots && config.buildTime[0] > 0) return;
+
+  gameState.spendFlex(cost, pm.resourceChoice || null);
+  buildingSystem.placeBuilding(pm.configId, col, row);
+  gameState.placementMode = null;
+  EventBus.emit('placement:cancel');
+});
+
+EventBus.on('placement:doCancel', () => {
+  gameState.placementMode = null;
+  EventBus.emit('placement:cancel');
 });
 
 // Cancel on Escape
@@ -302,4 +322,5 @@ window.__waveSystem = waveSystem;
 window.__gameLoop = gameLoop;
 window.__buildingSystem = buildingSystem;
 window.__trainingSystem = trainingSystem;
+window.__camera = camera;
 console.log('Bite Defense initialized!');

@@ -1,15 +1,20 @@
 import { EventBus } from './EventBus.js';
-import { STARTING_RESOURCES, STORAGE_CAPS, XP_PER_LEVEL, PHASE } from './Constants.js';
+import { STARTING_RESOURCES, STORAGE_CAPS, XP_PER_LEVEL, PHASE, ADMIN_MODE } from './Constants.js';
 
 export class GameState {
   constructor() {
-    this.resources = { ...STARTING_RESOURCES };
+    this.resources = { water: STARTING_RESOURCES.water, milk: STARTING_RESOURCES.milk };
     this.dogCoins = STARTING_RESOURCES.dogCoins || 0;
+    // Premium Bones: admin gets unlimited; real users get 0
+    this.premiumBones = ADMIN_MODE ? Infinity : 0;
+    this.adminMode = ADMIN_MODE;
+
     this.playerLevel = 1;
     this.playerXP = 0;
     this.currentWave = 0;
     this.waveActive = false;
-    this.selectedDifficulty = 2; // 1-5 stars, default normal
+    this.selectedDifficulty = 1; // starts at 1, unlock higher by beating waves
+    this.maxDifficultyUnlocked = 1;
 
     this.phase = PHASE.BUILDING;
 
@@ -18,9 +23,8 @@ export class GameState {
     this.enemies = [];
     this.projectiles = [];
     this.effects = [];
-    this.rallyPoints = new Map(); // buildingId -> { col, row }
+    this.rallyPoints = new Map();
 
-    // Spawn corner for current wave (0=TL, 1=TR, 2=BL, 3=BR)
     this.waveCorner = null;
 
     this.hoverTile = null;
@@ -69,22 +73,59 @@ export class GameState {
     return this.dogCoins >= amount;
   }
 
+  // Premium Bones (admin has unlimited)
+  addPremiumBones(amount) {
+    if (this.adminMode) return;
+    this.premiumBones += amount;
+    EventBus.emit('resource:changed', this.resources);
+  }
+
+  spendPremiumBones(amount) {
+    if (this.adminMode) return true;
+    if (this.premiumBones < amount) return false;
+    this.premiumBones -= amount;
+    EventBus.emit('resource:changed', this.resources);
+    return true;
+  }
+
+  canAffordPremium(amount) {
+    if (this.adminMode) return true;
+    return this.premiumBones >= amount;
+  }
+
   addResource(type, amount) {
     const cap = this.getStorageCap();
     this.resources[type] = Math.min(cap, this.resources[type] + amount);
     EventBus.emit('resource:changed', this.resources);
   }
 
-  canAfford(costs) {
-    if (!costs) return false;
-    return this.resources.water >= (costs.water || 0) &&
-           this.resources.milk >= (costs.milk || 0);
+  // ---- Flexible cost system: {amount: N} paid in EITHER water OR milk ----
+  canAffordFlex(cost) {
+    if (!cost) return false;
+    const n = cost.amount || 0;
+    if (n === 0) return true;
+    return this.resources.water >= n || this.resources.milk >= n;
   }
 
-  spend(costs) {
-    if (!this.canAfford(costs)) return false;
-    this.resources.water -= (costs.water || 0);
-    this.resources.milk -= (costs.milk || 0);
+  // Returns which resource would be used (prefer the one with more)
+  preferredResource(cost) {
+    const n = cost.amount || 0;
+    if (n === 0) return 'water';
+    const hasW = this.resources.water >= n;
+    const hasM = this.resources.milk >= n;
+    if (hasW && hasM) return this.resources.water >= this.resources.milk ? 'water' : 'milk';
+    if (hasW) return 'water';
+    if (hasM) return 'milk';
+    return null;
+  }
+
+  spendFlex(cost, resource = null) {
+    const n = cost.amount || 0;
+    if (n === 0) return true;
+    if (!resource) resource = this.preferredResource(cost);
+    if (!resource) return false;
+    if (this.resources[resource] < n) return false;
+    this.resources[resource] -= n;
     EventBus.emit('resource:changed', this.resources);
     return true;
   }
@@ -100,12 +141,10 @@ export class GameState {
     });
   }
 
-  // Count troops assigned to a specific training camp
   getTroopCountForCamp(campId) {
     return this.troops.filter(t => t.campId === campId && t.state !== 'DEAD').length;
   }
 
-  // Total fort capacity (sum over all FORT buildings at their level)
   getTotalFortCapacity() {
     let total = 0;
     for (const b of this.buildings) {
@@ -116,14 +155,12 @@ export class GameState {
     return total;
   }
 
-  // Used fort slots — each troop takes (troop.level) slots
   getUsedFortCapacity() {
     let used = 0;
     for (const t of this.troops) {
       if (t.state === 'DEAD') continue;
       used += t.level;
     }
-    // Also count queued troops across camps (reserving slots)
     for (const b of this.buildings) {
       if (b.configId !== 'TRAINING_CAMP') continue;
       for (const q of b.trainingQueue) {
@@ -137,14 +174,57 @@ export class GameState {
     return Math.max(0, this.getTotalFortCapacity() - this.getUsedFortCapacity());
   }
 
+  // Top up resource shortfall by spending Premium Bones.
+  // Conversion: 1 Premium Bone = 25 of any base resource (water/milk),
+  //              1 Premium Bone = 5 Dog Coins.
+  topUpShortfall(needed, resource = 'water') {
+    const have = resource === 'dogCoins' ? this.dogCoins : (this.resources[resource] || 0);
+    const shortfall = Math.max(0, needed - have);
+    if (shortfall === 0) return { ok: true, bonesUsed: 0 };
+
+    const ratePerBone = resource === 'dogCoins' ? 5 : 25;
+    const bonesNeeded = Math.ceil(shortfall / ratePerBone);
+    if (!this.canAffordPremium(bonesNeeded)) return { ok: false, bonesNeeded };
+
+    this.spendPremiumBones(bonesNeeded);
+    if (resource === 'dogCoins') {
+      this.dogCoins += bonesNeeded * ratePerBone;
+    } else {
+      this.resources[resource] = Math.min(this.getStorageCap(), have + bonesNeeded * ratePerBone);
+    }
+    EventBus.emit('resource:changed', this.resources);
+    return { ok: true, bonesUsed: bonesNeeded };
+  }
+
+  // For flexible-cost (water-or-milk): figure out which would need fewer bones to top-up
+  topUpShortfallFlex(amount) {
+    if (this.resources.water >= amount || this.resources.milk >= amount) return { ok: true, bonesUsed: 0 };
+    // Pick the resource closer to amount (smaller shortfall = fewer bones)
+    const shortW = amount - this.resources.water;
+    const shortM = amount - this.resources.milk;
+    const resource = shortW <= shortM ? 'water' : 'milk';
+    return this.topUpShortfall(amount, resource);
+  }
+
+  // Unlock next difficulty if the player beat the current max
+  unlockNextDifficulty() {
+    if (this.selectedDifficulty >= this.maxDifficultyUnlocked && this.maxDifficultyUnlocked < 5) {
+      this.maxDifficultyUnlocked++;
+      EventBus.emit('difficulty:unlocked', { level: this.maxDifficultyUnlocked });
+    }
+  }
+
   save() {
     const data = {
-      version: 2,
+      version: 3,
       timestamp: Date.now(),
       playerLevel: this.playerLevel,
       playerXP: this.playerXP,
       currentWave: this.currentWave,
       dogCoins: this.dogCoins,
+      premiumBones: this.adminMode ? 0 : this.premiumBones,
+      maxDifficultyUnlocked: this.maxDifficultyUnlocked,
+      selectedDifficulty: this.selectedDifficulty,
       resources: { water: this.resources.water, milk: this.resources.milk },
       buildings: this.buildings.map(b => ({
         configId: b.configId,

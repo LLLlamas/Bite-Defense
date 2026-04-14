@@ -2,8 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
   <title>Bite Defense</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Bangers&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -13,29 +16,46 @@
     <div class="hud-resources">
       <div class="resource" id="hud-water">
         <span class="resource-icon water-icon"></span>
-        <span class="resource-label">Water</span>
-        <span class="resource-value"><span id="water-count">200</span> / <span id="water-cap">500</span></span>
+        <div class="resource-text">
+          <span class="resource-value"><span id="water-count">200</span> / <span id="water-cap">500</span></span>
+          <span class="resource-label">Water</span>
+        </div>
       </div>
       <div class="resource" id="hud-milk">
         <span class="resource-icon milk-icon"></span>
-        <span class="resource-label">Milk</span>
-        <span class="resource-value"><span id="milk-count">200</span> / <span id="milk-cap">500</span></span>
+        <div class="resource-text">
+          <span class="resource-value"><span id="milk-count">200</span> / <span id="milk-cap">500</span></span>
+          <span class="resource-label">Milk</span>
+        </div>
       </div>
       <div class="resource" id="hud-coins">
         <span class="resource-icon coin-icon"></span>
-        <span class="resource-label">Dog Coins</span>
-        <span class="resource-value"><span id="coin-count">5</span></span>
+        <div class="resource-text">
+          <span class="resource-value"><span id="coin-count">5</span></span>
+          <span class="resource-label">Dog Coins</span>
+        </div>
+      </div>
+      <div class="resource" id="hud-bones">
+        <span class="resource-icon premium-bone-icon"></span>
+        <div class="resource-text">
+          <span class="resource-value"><span id="bones-count">∞</span></span>
+          <span class="resource-label">Premium Bones</span>
+        </div>
       </div>
     </div>
     <div class="hud-info">
       <span id="hud-level">Level 1</span>
       <div class="xp-bar-container">
         <span class="resource-icon bone-icon"></span>
-        <span class="resource-label">XP Bones</span>
-        <div class="xp-bar">
-          <div class="xp-bar-fill" id="xp-bar-fill"></div>
+        <div class="resource-text xp-text">
+          <div class="xp-bar-row">
+            <div class="xp-bar">
+              <div class="xp-bar-fill" id="xp-bar-fill"></div>
+            </div>
+            <span id="hud-xp">0/100</span>
+          </div>
+          <span class="resource-label">XP Bones</span>
         </div>
-        <span id="hud-xp">0/100</span>
       </div>
       <span id="hud-wave">Wave: 0</span>
     </div>
@@ -65,25 +85,58 @@
     <div id="training-content"></div>
   </div>
 
-  <div id="wave-panel">
-    <div id="difficulty-selector" class="hidden">
-      <div class="difficulty-label">Select Difficulty</div>
-      <div class="difficulty-stars">
-        <button class="star-btn" data-stars="1" title="Easy">&#9733;</button>
-        <button class="star-btn selected" data-stars="2" title="Normal">&#9733;</button>
-        <button class="star-btn" data-stars="3" title="Hard">&#9733;</button>
-        <button class="star-btn" data-stars="4" title="Brutal">&#9733;</button>
-        <button class="star-btn" data-stars="5" title="Nightmare">&#9733;</button>
+  <!-- Bottom panel: difficulty/wave/store + info — blocks canvas clicks -->
+  <div id="bottom-panel">
+    <div class="bp-section bp-info">
+      <div class="bp-info-row">
+        <span class="bp-info-label">Wave</span>
+        <span class="bp-info-value" id="bp-wave">1</span>
       </div>
-      <div id="difficulty-desc">Normal - 1x rewards</div>
+      <div class="bp-info-row">
+        <span class="bp-info-label">Difficulty</span>
+        <span class="bp-info-value" id="bp-difficulty">Easy</span>
+      </div>
+      <div class="bp-info-row">
+        <span class="bp-info-label">Troops</span>
+        <span class="bp-info-value" id="bp-troops">0</span>
+      </div>
     </div>
-    <button id="wave-start-btn">Start Wave 1</button>
-    <div id="pre-battle-controls" class="hidden">
-      <div class="pre-battle-hint">Position your troops! Click a troop to select, then click a tile to move it. Click a Training Camp to set a rally point.</div>
-      <button id="deploy-btn">Deploy!</button>
-      <button id="cancel-deploy-btn">Cancel</button>
+
+    <div class="bp-section bp-center">
+      <div id="difficulty-selector">
+        <div class="difficulty-label">Select Difficulty</div>
+        <div class="difficulty-stars">
+          <button class="star-btn selected" data-stars="1" title="Easy">&#9733;</button>
+          <button class="star-btn" data-stars="2" title="Normal">&#9733;</button>
+          <button class="star-btn" data-stars="3" title="Hard">&#9733;</button>
+          <button class="star-btn" data-stars="4" title="Brutal">&#9733;</button>
+          <button class="star-btn" data-stars="5" title="Nightmare">&#9733;</button>
+        </div>
+        <div id="difficulty-desc">Easy - 0.5x rewards</div>
+      </div>
+      <button id="wave-start-btn">Start Wave 1</button>
+      <div id="pre-battle-controls" class="hidden">
+        <div class="pre-battle-hint">Position your troops! Click a troop to select, then click a tile to move it. Click a Training Camp to set a rally point.</div>
+        <div class="pre-battle-actions">
+          <button id="deploy-btn">Deploy!</button>
+          <button id="cancel-deploy-btn">Cancel</button>
+        </div>
+      </div>
+      <div id="wave-status" class="hidden"></div>
     </div>
-    <div id="wave-status" class="hidden"></div>
+
+    <div class="bp-section bp-actions">
+      <button id="store-toggle-btn">🛒 Store</button>
+    </div>
+  </div>
+
+  <!-- Floating placement-confirm tray, shown when a placement is being confirmed -->
+  <div id="placement-confirm" class="hidden">
+    <div class="pc-info" id="pc-info">Confirm placement?</div>
+    <div class="pc-buttons">
+      <button id="pc-confirm-btn" class="btn pc-confirm">✓ Confirm</button>
+      <button id="pc-cancel-btn" class="btn pc-cancel">✕ Cancel</button>
+    </div>
   </div>
 
   <div id="reward-popup" class="hidden">
@@ -93,8 +146,6 @@
       <button id="reward-dismiss" class="btn">Continue</button>
     </div>
   </div>
-
-  <button id="store-toggle-btn">Store</button>
 
   <script type="module" src="src/main.js"></script>
 </body>

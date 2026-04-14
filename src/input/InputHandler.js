@@ -15,12 +15,15 @@ export class InputHandler {
     canvas.addEventListener('wheel', (e) => this._onWheel(e), { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-    // Touch support
+    // Touch state
     this.touches = {};
     this.lastPinchDist = 0;
+    this.touchStartPos = null; // for tap detection
+    this.touchMoved = false;
     canvas.addEventListener('touchstart', (e) => this._onTouchStart(e), { passive: false });
     canvas.addEventListener('touchmove', (e) => this._onTouchMove(e), { passive: false });
-    canvas.addEventListener('touchend', (e) => this._onTouchEnd(e));
+    canvas.addEventListener('touchend', (e) => this._onTouchEnd(e), { passive: false });
+    canvas.addEventListener('touchcancel', (e) => this._onTouchEnd(e), { passive: false });
   }
 
   _onMouseDown(e) {
@@ -42,7 +45,6 @@ export class InputHandler {
       this.camera.pan(dx, dy);
       this.lastMouse = { x: e.clientX, y: e.clientY };
     }
-
     const tile = screenToTile(e.clientX, e.clientY, this.camera);
     const col = Math.floor(tile.col);
     const row = Math.floor(tile.row);
@@ -58,7 +60,8 @@ export class InputHandler {
 
   _onWheel(e) {
     e.preventDefault();
-    this.camera.zoomAt(e.clientX, e.clientY, e.deltaY);
+    // Slower mouse-wheel zoom
+    this.camera.zoomAt(e.clientX, e.clientY, e.deltaY, 1.0);
   }
 
   _onTouchStart(e) {
@@ -66,11 +69,16 @@ export class InputHandler {
     for (const touch of e.changedTouches) {
       this.touches[touch.identifier] = { x: touch.clientX, y: touch.clientY };
     }
-    if (Object.keys(this.touches).length === 2) {
+    if (Object.keys(this.touches).length === 1) {
+      const t = e.changedTouches[0];
+      this.touchStartPos = { x: t.clientX, y: t.clientY };
+      this.touchMoved = false;
+    } else if (Object.keys(this.touches).length === 2) {
       const ids = Object.keys(this.touches);
       const t0 = this.touches[ids[0]];
       const t1 = this.touches[ids[1]];
       this.lastPinchDist = Math.hypot(t1.x - t0.x, t1.y - t0.y);
+      this.touchMoved = true;
     }
   }
 
@@ -79,28 +87,33 @@ export class InputHandler {
     const ids = Object.keys(this.touches);
 
     if (ids.length === 1) {
-      // Pan
       const touch = e.changedTouches[0];
       const prev = this.touches[touch.identifier];
       if (prev) {
         const dx = touch.clientX - prev.x;
         const dy = touch.clientY - prev.y;
-        this.camera.pan(dx, dy);
+        if (Math.abs(dx) + Math.abs(dy) > 4) this.touchMoved = true;
+        // Only pan if there's been deliberate movement
+        if (this.touchMoved) this.camera.pan(dx, dy);
         this.touches[touch.identifier] = { x: touch.clientX, y: touch.clientY };
+
+        // Update hover position on touch
+        const tile = screenToTile(touch.clientX, touch.clientY, this.camera);
+        EventBus.emit('input:hover', { col: Math.floor(tile.col), row: Math.floor(tile.row) });
       }
     } else if (ids.length === 2) {
-      // Update positions
       for (const touch of e.changedTouches) {
         this.touches[touch.identifier] = { x: touch.clientX, y: touch.clientY };
       }
       const t0 = this.touches[ids[0]];
       const t1 = this.touches[ids[1]];
       const dist = Math.hypot(t1.x - t0.x, t1.y - t0.y);
-      if (this.lastPinchDist > 0) {
+      if (this.lastPinchDist > 0 && dist > 0) {
         const midX = (t0.x + t1.x) / 2;
         const midY = (t0.y + t1.y) / 2;
-        const delta = this.lastPinchDist - dist;
-        this.camera.zoomAt(midX, midY, delta);
+        // Use scale factor (gentle) instead of raw delta
+        const scale = dist / this.lastPinchDist;
+        this.camera.pinchZoom(midX, midY, scale);
       }
       this.lastPinchDist = dist;
     }
@@ -108,8 +121,8 @@ export class InputHandler {
 
   _onTouchEnd(e) {
     for (const touch of e.changedTouches) {
-      // Single tap = click
-      if (Object.keys(this.touches).length === 1) {
+      // Single tap with no significant movement = click
+      if (Object.keys(this.touches).length === 1 && !this.touchMoved && this.touchStartPos) {
         const tile = screenToTile(touch.clientX, touch.clientY, this.camera);
         const col = Math.floor(tile.col);
         const row = Math.floor(tile.row);
@@ -117,6 +130,10 @@ export class InputHandler {
       }
       delete this.touches[touch.identifier];
     }
-    this.lastPinchDist = 0;
+    if (Object.keys(this.touches).length === 0) {
+      this.lastPinchDist = 0;
+      this.touchStartPos = null;
+      this.touchMoved = false;
+    }
   }
 }

@@ -7,7 +7,7 @@ export class TrainingSystem {
     this.state = gameState;
   }
 
-  queueTroop(building, troopConfigId) {
+  queueTroop(building, troopConfigId, resourceChoice = null) {
     const troopConfig = TROOPS[troopConfigId];
     if (!troopConfig) return false;
 
@@ -17,7 +17,6 @@ export class TrainingSystem {
     const level = building.level;
     const lvlIdx = level - 1;
 
-    // Need Fort capacity: troop takes `level` slots
     const fortAvail = this.state.getFortAvailableSlots();
     if (fortAvail < level) {
       EventBus.emit('training:blockedNoFort', { building });
@@ -25,8 +24,8 @@ export class TrainingSystem {
     }
 
     const cost = troopConfig.trainCost[lvlIdx] || troopConfig.trainCost[troopConfig.trainCost.length - 1];
-    if (!this.state.canAfford(cost)) return false;
-    this.state.spend(cost);
+    if (!this.state.canAffordFlex(cost)) return false;
+    if (!this.state.spendFlex(cost, resourceChoice)) return false;
 
     const trainTime = troopConfig.trainTime[lvlIdx] || troopConfig.trainTime[troopConfig.trainTime.length - 1];
 
@@ -49,11 +48,24 @@ export class TrainingSystem {
     const lvlIdx = item.level - 1;
     const cost = troopConfig.trainCost[lvlIdx] || troopConfig.trainCost[troopConfig.trainCost.length - 1];
 
-    this.state.addResource('water', Math.floor((cost.water || 0) / 2));
-    this.state.addResource('milk', Math.floor((cost.milk || 0) / 2));
+    // Refund half, default to water
+    const refund = Math.floor((cost.amount || 0) / 2);
+    if (refund > 0) this.state.addResource('water', refund);
 
     building.trainingQueue.splice(index, 1);
     EventBus.emit('training:cancelled', { building });
+  }
+
+  // Speed up the first queued troop by spending Premium Bones
+  speedUpTraining(building) {
+    if (!building || building.trainingQueue.length === 0) return false;
+    const current = building.trainingQueue[0];
+    const minutes = Math.ceil(current.timeRemaining / 60);
+    const bonesCost = Math.max(1, minutes * 2);
+    if (!this.state.canAffordPremium(bonesCost)) return false;
+    this.state.spendPremiumBones(bonesCost);
+    current.timeRemaining = 0;
+    return true;
   }
 
   _nearestFort(building) {
