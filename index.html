@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bite Defense</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="hud">
+    <div class="hud-resources">
+      <div class="resource" id="hud-water">
+        <span class="resource-icon water-icon"></span>
+        <span id="water-count">200</span> / <span id="water-cap">500</span>
+      </div>
+      <div class="resource" id="hud-milk">
+        <span class="resource-icon milk-icon"></span>
+        <span id="milk-count">200</span> / <span id="milk-cap">500</span>
+      </div>
+      <div class="resource" id="hud-coins">
+        <span class="resource-icon coin-icon"></span>
+        <span id="coin-count">5</span>
+      </div>
+    </div>
+    <div class="hud-info">
+      <span id="hud-level">Level 1</span>
+      <div class="xp-bar-container">
+        <span class="resource-icon bone-icon"></span>
+        <div class="xp-bar">
+          <div class="xp-bar-fill" id="xp-bar-fill"></div>
+        </div>
+        <span id="hud-xp">0/100</span>
+      </div>
+      <span id="hud-wave">Wave: 0</span>
+    </div>
+  </div>
+
+  <div id="store-panel" class="panel hidden">
+    <div class="panel-header">
+      <h3>Store</h3>
+      <button id="store-close" class="panel-close">&times;</button>
+    </div>
+    <div id="store-items"></div>
+  </div>
+
+  <div id="building-info-panel" class="panel hidden">
+    <div class="panel-header">
+      <h3 id="building-info-name"></h3>
+      <button id="building-info-close" class="panel-close">&times;</button>
+    </div>
+    <div id="building-info-content"></div>
+  </div>
+
+  <div id="training-panel" class="panel hidden">
+    <div class="panel-header">
+      <h3>Training Camp</h3>
+      <button id="training-close" class="panel-close">&times;</button>
+    </div>
+    <div id="training-content"></div>
+  </div>
+
+  <div id="wave-panel">
+    <div id="difficulty-selector" class="hidden">
+      <div class="difficulty-label">Select Difficulty</div>
+      <div class="difficulty-stars">
+        <button class="star-btn" data-stars="1" title="Easy">&#9733;</button>
+        <button class="star-btn selected" data-stars="2" title="Normal">&#9733;</button>
+        <button class="star-btn" data-stars="3" title="Hard">&#9733;</button>
+        <button class="star-btn" data-stars="4" title="Brutal">&#9733;</button>
+        <button class="star-btn" data-stars="5" title="Nightmare">&#9733;</button>
+      </div>
+      <div id="difficulty-desc">Normal - 1x rewards</div>
+    </div>
+    <button id="wave-start-btn">Start Wave 1</button>
+    <div id="pre-battle-controls" class="hidden">
+      <div class="pre-battle-hint">Position your troops! Click a troop to select, then click a tile to move it. Click a Training Camp to set a rally point.</div>
+      <button id="deploy-btn">Deploy!</button>
+      <button id="cancel-deploy-btn">Cancel</button>
+    </div>
+    <div id="wave-status" class="hidden"></div>
+  </div>
+
+  <div id="reward-popup" class="hidden">
+    <div class="reward-popup-content">
+      <h3 id="reward-title"></h3>
+      <div id="reward-details"></div>
+      <button id="reward-dismiss" class="btn">Continue</button>
+    </div>
+  </div>
+
+  <button id="store-toggle-btn">Store</button>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
