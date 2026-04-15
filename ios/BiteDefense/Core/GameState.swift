@@ -16,7 +16,7 @@ final class GameState {
     // MARK: - Resources
     var water: Int = 250
     var milk: Int = 250
-    var dogCoins: Int = 5
+    var dogCoins: Int = 300
     var premiumBones: Int = 0
 
     /// **Testing flag.** When true, premium bones are effectively unlimited

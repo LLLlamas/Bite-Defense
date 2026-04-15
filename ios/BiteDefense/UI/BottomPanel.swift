@@ -58,7 +58,7 @@ struct BottomPanel: View {
                         in: Capsule())
             .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bouncy)
     }
 
     private var difficultyRow: some View {
@@ -112,7 +112,7 @@ struct BottomPanel: View {
             )
             .opacity(unlocked ? 1 : 0.35)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bouncy)
         .disabled(!unlocked)
     }
 }
@@ -285,6 +285,11 @@ struct WaveResultCard: View {
         }
         .padding(16)
         .background(.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(.yellow.opacity(0.55), lineWidth: 1.5)
+        )
+        .pulsingGlow(color: .green, min: 6, max: 22, duration: 1.2)
         .padding(.horizontal, 20)
     }
 
@@ -306,6 +311,11 @@ struct WaveResultCard: View {
         }
         .padding(16)
         .background(.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(.red.opacity(0.5), lineWidth: 1.5)
+        )
+        .pulsingGlow(color: .red, min: 4, max: 16, duration: 1.0)
         .padding(.horizontal, 20)
     }
 

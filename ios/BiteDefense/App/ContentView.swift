@@ -59,6 +59,18 @@ struct ContentView: View {
                     .transition(.scale.combined(with: .opacity))
             }
 
+            // Level-up celebration — pops up whenever the player crosses
+            // an XP threshold. Highlights any newly unlocked content.
+            if let info = coordinator.levelUpPresentation {
+                Color.black.opacity(0.6)
+                    .ignoresSafeArea()
+                    .onTapGesture { coordinator.dismissLevelUp() }
+                LevelUpCard(info: info) {
+                    coordinator.dismissLevelUp()
+                }
+                .transition(.scale(scale: 0.6).combined(with: .opacity))
+            }
+
             // Guidance overlay — shown when the player tries an action that
             // isn't allowed yet (e.g. "Start Wave" with no troops).
             if let msg = coordinator.guidanceMessage {
@@ -73,6 +85,8 @@ struct ContentView: View {
         }
         .animation(.easeInOut(duration: 0.25), value: coordinator.infoCardVisible)
         .animation(.easeInOut(duration: 0.25), value: coordinator.guidanceMessage)
+        .animation(.spring(response: 0.4, dampingFraction: 0.7),
+                   value: coordinator.levelUpPresentation)
         .onAppear {
             scene.coordinator = coordinator
             coordinator.showInfoCardIfFirstTime()

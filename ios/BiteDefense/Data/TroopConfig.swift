@@ -38,6 +38,9 @@ struct TroopDef {
     let feedWater: Int
     let feedMilk: Int
     let maxLevel: Int
+    /// Player level required before this troop can be trained. 1 = available
+    /// from the start; higher values lock the troop behind level-up unlocks.
+    let unlockLevel: Int
 
     func hp(level: Int)          -> Int    { clamp(hp, level) }
     func damage(level: Int)      -> Int    { clamp(damage, level) }
@@ -67,7 +70,7 @@ enum TroopConfig {
             trainTime:   [8, 15, 25, 40, 60],
             trainCost:   [25, 55, 95, 160, 270],
             trainResource: .milk,
-            feedWater: 3, feedMilk: 2, maxLevel: 5
+            feedWater: 3, feedMilk: 2, maxLevel: 5, unlockLevel: 1
         ),
         .archer: TroopDef(
             type: .archer, displayName: "Archer Dog", category: .ranged,
@@ -81,7 +84,7 @@ enum TroopConfig {
             trainTime:   [12, 22, 35, 55, 80],
             trainCost:   [35, 70, 125, 215, 360],
             trainResource: .water,
-            feedWater: 3, feedMilk: 0, maxLevel: 5
+            feedWater: 3, feedMilk: 0, maxLevel: 5, unlockLevel: 3
         )
     ]
 

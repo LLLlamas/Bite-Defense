@@ -193,19 +193,34 @@ struct TrainingPanel: View {
         let time = def.trainTime(level: level)
         let canAfford = coordinator.state.canAfford(cost, in: def.trainResource)
         let hasFortSpace = coordinator.state.fortAvailableSlots >= level
-        let disabled = queueFull || !canAfford || !hasFortSpace
+        let levelLocked = coordinator.state.playerLevel < def.unlockLevel
+        let disabled = levelLocked || queueFull || !canAfford || !hasFortSpace
 
         VStack(spacing: 4) {
             Button {
                 _ = coordinator.queueTroop(type)
             } label: {
                 VStack(spacing: 3) {
-                    Text(def.emoji).font(.title2)
+                    ZStack {
+                        Text(def.emoji).font(.title2)
+                        if levelLocked {
+                            Image(systemName: "lock.fill")
+                                .font(.caption2.bold())
+                                .foregroundStyle(.yellow)
+                                .offset(x: 14, y: -10)
+                        }
+                    }
                     Text(def.displayName).font(.caption2.bold())
                         .foregroundStyle(.white)
-                    Text("\(cost) \(def.trainResource.emoji)")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.9))
+                    if levelLocked {
+                        Text("Unlocks Lv \(def.unlockLevel)")
+                            .font(.system(size: 9, design: .monospaced).bold())
+                            .foregroundStyle(.yellow)
+                    } else {
+                        Text("\(cost) \(def.trainResource.emoji)")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.9))
+                    }
                     Text(timeString(time))
                         .font(.system(size: 9, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.6))
@@ -226,7 +241,7 @@ struct TrainingPanel: View {
             .disabled(disabled)
 
             // Top-off button: shown when the only blocker is resources.
-            if !canAfford && !queueFull && hasFortSpace {
+            if !levelLocked && !canAfford && !queueFull && hasFortSpace {
                 topOffButton(cost: cost, resource: def.trainResource)
             }
         }

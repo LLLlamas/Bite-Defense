@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import Combine
 
 /// Top-level orchestrator. Owns model state, the grid, and all systems.
 /// SwiftUI views read it for HUD + panels; the `GameScene` calls into it for
@@ -41,6 +42,12 @@ final class GameCoordinator {
     /// isn't allowed yet (e.g. "Start Wave" without troops).
     var guidanceMessage: GuidanceMessage? = nil
 
+    /// Celebration overlay shown briefly when the player levels up. Lists any
+    /// buildings / troops that became available at the new level.
+    var levelUpPresentation: LevelUpInfo? = nil
+
+    @ObservationIgnored private var cancellables: Set<AnyCancellable> = []
+
     init() {
         let state = GameState()
         let grid = Grid()
@@ -53,7 +60,32 @@ final class GameCoordinator {
         self.pathfinding     = PathfindingSystem(grid: grid)
         self.waveSystem      = WaveSystem(state: state)
         self.combatSystem    = CombatSystem(state: state)
+
+        EventBus.shared.publisher
+            .compactMap { (event: GameEvent) -> Int? in
+                if case .playerLeveledUp(let lv) = event { return lv }
+                return nil
+            }
+            .sink { [weak self] level in
+                self?.presentLevelUp(newLevel: level)
+            }
+            .store(in: &cancellables)
     }
+
+    private func presentLevelUp(newLevel: Int) {
+        let unlockedBuildings = BuildingConfig.definitions.values
+            .filter { $0.unlockLevel == newLevel }
+            .sorted(by: { $0.displayName < $1.displayName })
+            .map { LevelUpInfo.Unlock(emoji: $0.emoji, name: $0.displayName, kind: "Building") }
+        let unlockedTroops = TroopConfig.definitions.values
+            .filter { $0.unlockLevel == newLevel }
+            .sorted(by: { $0.displayName < $1.displayName })
+            .map { LevelUpInfo.Unlock(emoji: $0.emoji, name: $0.displayName, kind: "Troop") }
+        levelUpPresentation = LevelUpInfo(newLevel: newLevel,
+                                          unlocks: unlockedBuildings + unlockedTroops)
+    }
+
+    func dismissLevelUp() { levelUpPresentation = nil }
 
     // MARK: - Frame tick
 
@@ -354,6 +386,17 @@ final class GameCoordinator {
     }
 
     func cancelPendingMove() { pendingTroopMove = nil }
+}
+
+struct LevelUpInfo: Equatable {
+    struct Unlock: Equatable, Identifiable {
+        let id = UUID()
+        let emoji: String
+        let name: String
+        let kind: String
+    }
+    let newLevel: Int
+    let unlocks: [Unlock]
 }
 
 struct TilePos: Hashable { let col: Int; let row: Int }

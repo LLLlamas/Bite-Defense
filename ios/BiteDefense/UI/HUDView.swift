@@ -56,6 +56,9 @@ struct HUDView: View {
                         .font(.system(size: 11, design: .monospaced).weight(.bold))
                         .foregroundStyle(full ? .yellow : .white)
                         .frame(width: 46, alignment: .trailing)
+                        .contentTransition(.numericText())
+                        .animation(.snappy, value: value)
+                        .popOnChange(of: value)
                 }
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
@@ -70,7 +73,7 @@ struct HUDView: View {
             .frame(height: chipHeight)
             .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 9))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bouncy)
         .popover(isPresented: bindingFor(chipKind),
                  attachmentAnchor: .point(.bottom),
                  arrowEdge: .top) {
@@ -90,12 +93,15 @@ struct HUDView: View {
                     .font(.system(size: 11, design: .monospaced).weight(.bold))
                     .foregroundStyle(.white)
                     .frame(minWidth: 22, alignment: .trailing)
+                    .contentTransition(.numericText())
+                    .animation(.snappy, value: text)
+                    .popOnChange(of: text)
             }
             .padding(.horizontal, 8)
             .frame(height: chipHeight)
             .background(tint, in: Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bouncy)
         .popover(isPresented: bindingFor(kind),
                  attachmentAnchor: .point(.bottom),
                  arrowEdge: .top) {
@@ -115,12 +121,15 @@ struct HUDView: View {
                 Text("Lv \(coordinator.state.playerLevel)")
                     .font(.system(size: 11, design: .monospaced).weight(.bold))
                     .foregroundStyle(.white)
+                    .contentTransition(.numericText())
+                    .animation(.snappy, value: coordinator.state.playerLevel)
+                    .popOnChange(of: coordinator.state.playerLevel, scale: 1.35)
             }
             .padding(.horizontal, 8)
             .frame(height: chipHeight)
             .background(.black.opacity(0.55), in: Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bouncy)
         .popover(isPresented: bindingFor(.level),
                  attachmentAnchor: .point(.bottom),
                  arrowEdge: .top) {
@@ -171,7 +180,7 @@ struct HUDView: View {
                 Text("\(coordinator.state.dogCoins) coins")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
-                Text("Earn coins from trained troops and wave rewards. Spend on Training Camp, Fort, Water Well, and Milk Farm upgrades.")
+                Text("Earn coins from trained troops and wave rewards. Spend them to place new buildings and upgrade most existing ones.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

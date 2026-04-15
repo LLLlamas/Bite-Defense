@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Confirm tray that appears when a placement candidate is locked. Lets the
-/// player choose whether to pay in water or milk. Move flow is free —
-/// relocating an existing building costs nothing (matches JS behavior).
+/// Confirm tray that appears when a placement candidate is locked. Placement
+/// is paid in Dog Coins (premium bones can top off if you're short). Move
+/// flow is free — relocating an existing building costs nothing.
 struct PlacementConfirmTray: View {
     @Bindable var coordinator: GameCoordinator
 
@@ -49,6 +49,10 @@ struct PlacementConfirmTray: View {
         }
         .padding(12)
         .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(.yellow.opacity(0.35), lineWidth: 1)
+        )
         .padding(.horizontal, 12)
     }
 
@@ -64,7 +68,7 @@ struct PlacementConfirmTray: View {
             Button("Cancel") { coordinator.cancelPlacement() }
                 .buttonStyle(.bordered).tint(.gray)
             Button {
-                confirm(.water)
+                confirm()
             } label: {
                 Label("Confirm Move", systemImage: "checkmark.circle.fill")
                     .font(.callout.bold())
@@ -87,7 +91,7 @@ struct PlacementConfirmTray: View {
             Button("Cancel") { coordinator.cancelPlacement() }
                 .buttonStyle(.bordered).tint(.gray)
             Button {
-                confirm(.water)
+                confirm()
             } label: {
                 Label("Place", systemImage: "checkmark.circle.fill")
                     .font(.callout.bold())
@@ -98,86 +102,40 @@ struct PlacementConfirmTray: View {
         }
     }
 
-    // MARK: - New placement (cost)
+    // MARK: - New placement (Dog Coin cost)
 
     @ViewBuilder
     private func payActions(cost: Int, validTile: Bool) -> some View {
-        let canWater = validTile && coordinator.state.water >= cost
-        let canMilk  = validTile && coordinator.state.milk  >= cost
+        let canPay = validTile && coordinator.state.dogCoins >= cost
 
-        VStack(spacing: 8) {
-            HStack(spacing: 10) {
-                Button { confirm(.water) } label: {
-                    payButtonLabel(emoji: "💧", amount: cost)
+        HStack(spacing: 10) {
+            Button("Cancel") { coordinator.cancelPlacement() }
+                .buttonStyle(.bordered)
+                .tint(.gray)
+            Spacer()
+            Button {
+                confirm()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                    Text("Pay \(cost) 🪙")
+                        .font(.subheadline.monospacedDigit().bold())
                 }
-                .disabled(!canWater)
-                .buttonStyle(.borderedProminent)
-                .tint(.blue)
-
-                Button { confirm(.milk) } label: {
-                    payButtonLabel(emoji: "🥛", amount: cost)
-                }
-                .disabled(!canMilk)
-                .buttonStyle(.borderedProminent)
-                .tint(.orange)
-
-                Button("Cancel") { coordinator.cancelPlacement() }
-                    .buttonStyle(.bordered)
-                    .tint(.gray)
             }
-
-            // Bones top-off: show when tile is valid but both resources short.
-            if validTile && !canWater && !canMilk {
-                topUpButton(cost: cost)
-            }
+            .disabled(!canPay)
+            .buttonStyle(.borderedProminent)
+            .tint(.yellow)
         }
     }
 
-    @ViewBuilder
-    private func topUpButton(cost: Int) -> some View {
-        let waterShort = max(0, cost - coordinator.state.water)
-        let milkShort  = max(0, cost - coordinator.state.milk)
-        let resource: ResourceKind = waterShort <= milkShort ? .water : .milk
-        let short = resource == .water ? waterShort : milkShort
-        let bones = coordinator.state.bonesToCover(shortfall: short, resource: resource)
-        let canAffordBones = coordinator.state.canAffordPremium(bones)
-        Button {
-            if coordinator.state.topUpShortfall(needed: cost, resource: resource) {
-                confirm(resource)
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "bolt.fill")
-                Text("Top up \(bones)🦴 & Pay \(resource == .water ? "💧" : "🥛")")
-                    .font(.caption.bold())
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 12).padding(.vertical, 7)
-            .background(canAffordBones ? Color.purple.opacity(0.9)
-                                       : Color.gray.opacity(0.45),
-                        in: RoundedRectangle(cornerRadius: 9))
-        }
-        .buttonStyle(.plain)
-        .disabled(!canAffordBones)
-    }
-
-    private func payButtonLabel(emoji: String, amount: Int) -> some View {
-        HStack(spacing: 6) {
-            Text(emoji)
-            Text("Pay \(amount)")
-                .font(.subheadline.monospacedDigit().bold())
-        }
-    }
-
-    private func confirm(_ resource: ResourceKind) {
+    private func confirm() {
         guard let pm = coordinator.placement, let cand = pm.candidate else { return }
         if let movingId = pm.movingId {
-            // Move flow — no payment, just relocate.
             _ = coordinator.buildingSystem.move(buildingId: movingId,
                                                 toCol: cand.col, toRow: cand.row)
             coordinator.cancelPlacement()
         } else {
-            coordinator.confirmPlacement(payWith: resource)
+            coordinator.confirmPlacement(payWith: .dogCoins)
         }
     }
 
@@ -187,7 +145,7 @@ struct PlacementConfirmTray: View {
         case .duplicateUnique: return "Already placed."
         case .capReached: return "Upgrade your Dog HQ to build more."
         case .occupied: return "Tile is occupied."
-        case .insufficientResource: return "Not enough resources."
+        case .insufficientResource: return "Not enough Dog Coins."
         case .success: return ""
         }
     }

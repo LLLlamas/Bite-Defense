@@ -36,7 +36,8 @@ struct IntroCard: View {
             ])
 
             section(title: "Training Your Dogs", items: [
-                ("🐕", "Tap a Training Camp to open its panel — queue troops from the same card."),
+                ("🐕", "Soldier Dogs (melee) are available from the start — they train with 🥛 Milk."),
+                ("🐶", "Archer Dogs (ranged) unlock at Player Level 3 — they train with 💧 Water."),
                 ("🏠", "Trained dogs garrison in the Fort. Each troop takes slots equal to its level."),
                 ("⚡", "Bones can also speed up any training item directly from the queue.")
             ])
@@ -80,6 +81,7 @@ struct IntroCard: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(.yellow.opacity(0.45), lineWidth: 1.5)
         )
+        .pulsingGlow(color: .yellow, min: 6, max: 18, duration: 1.4)
         .padding(.horizontal, 20)
     }
 
@@ -132,7 +134,7 @@ struct CornerActionButtons: View {
                 .overlay(Circle().stroke(.white.opacity(0.25), lineWidth: 1))
                 .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bouncy)
     }
 }
 
@@ -178,6 +180,7 @@ struct GuidanceCard: View {
             RoundedRectangle(cornerRadius: 14)
                 .stroke(.yellow.opacity(0.45), lineWidth: 1.5)
         )
+        .pulsingGlow(color: .yellow, min: 6, max: 18, duration: 1.2)
         .padding(.horizontal, 20)
     }
 }

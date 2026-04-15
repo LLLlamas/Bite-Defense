@@ -14,38 +14,42 @@ final class BuildingSystemTests: XCTestCase {
     }
 
     func testPlaceWallSucceedsAndDeductsResource() {
-        let starting = state.water
-        let result = sys.place(type: .wall, col: 0, row: 0, payWith: .water)
+        state.dogCoins = 500
+        let starting = state.dogCoins
+        let result = sys.place(type: .wall, col: 0, row: 0)
         guard case .success(let model) = result else { return XCTFail("Expected success, got \(result)") }
         XCTAssertEqual(model.type, .wall)
-        XCTAssertEqual(state.water, starting - BuildingConfig.def(for: .wall).placementCost())
+        XCTAssertEqual(state.dogCoins,
+                       starting - BuildingConfig.def(for: .wall).placementCost())
         XCTAssertEqual(state.buildings.count, 1)
         XCTAssertEqual(grid.buildingId(at: 0, row: 0), model.id)
     }
 
     func testPlacingOnOccupiedTileFails() {
-        _ = sys.place(type: .wall, col: 1, row: 1, payWith: .water)
-        let again = sys.place(type: .wall, col: 1, row: 1, payWith: .water)
+        state.dogCoins = 500
+        _ = sys.place(type: .wall, col: 1, row: 1)
+        let again = sys.place(type: .wall, col: 1, row: 1)
         XCTAssertEqual(again, .occupied)
     }
 
     func testInsufficientResourceBlocksPlacement() {
-        state.water = 0
-        state.milk = 0
-        let result = sys.place(type: .dogHQ, col: 0, row: 0, payWith: .water)
+        // Wall costs coins now — zero coins means placement fails.
+        state.dogCoins = 0
+        let result = sys.place(type: .wall, col: 0, row: 0)
         XCTAssertEqual(result, .insufficientResource)
         XCTAssertTrue(state.buildings.isEmpty)
     }
 
     func testUniqueBuildingCannotDuplicate() {
-        state.water = 100_000 // enough for HQ + retry
-        _ = sys.place(type: .dogHQ, col: 0, row: 0, payWith: .water)
-        let dup = sys.place(type: .dogHQ, col: 5, row: 5, payWith: .water)
+        // Dog HQ is free — duplicate check still fires.
+        _ = sys.place(type: .dogHQ, col: 0, row: 0)
+        let dup = sys.place(type: .dogHQ, col: 5, row: 5)
         XCTAssertEqual(dup, .duplicateUnique)
     }
 
     func testMoveSucceedsToFreeTileAndUpdatesGrid() {
-        guard case .success(let model) = sys.place(type: .waterWell, col: 2, row: 2, payWith: .water) else {
+        state.dogCoins = 500
+        guard case .success(let model) = sys.place(type: .waterWell, col: 2, row: 2) else {
             return XCTFail("place failed")
         }
         let result = sys.move(buildingId: model.id, toCol: 10, toRow: 10)
@@ -59,10 +63,11 @@ final class BuildingSystemTests: XCTestCase {
     }
 
     func testMoveBlockedRestoresOriginalOccupancy() {
-        guard case .success(let a) = sys.place(type: .wall, col: 5, row: 5, payWith: .water) else {
+        state.dogCoins = 500
+        guard case .success(let a) = sys.place(type: .wall, col: 5, row: 5) else {
             return XCTFail("place A failed")
         }
-        _ = sys.place(type: .wall, col: 7, row: 7, payWith: .water)
+        _ = sys.place(type: .wall, col: 7, row: 7)
         let result = sys.move(buildingId: a.id, toCol: 7, toRow: 7)
         XCTAssertEqual(result, .occupied)
         // Original tile is still occupied by A.
@@ -70,22 +75,23 @@ final class BuildingSystemTests: XCTestCase {
     }
 
     func testRemoveFreesGridAndRefundsHalf() {
-        let before = state.water
+        state.dogCoins = 500
+        let before = state.dogCoins
         let cost = BuildingConfig.def(for: .waterWell).placementCost()
-        guard case .success(let model) = sys.place(type: .waterWell, col: 0, row: 0, payWith: .water) else {
+        guard case .success(let model) = sys.place(type: .waterWell, col: 0, row: 0) else {
             return XCTFail("place failed")
         }
-        XCTAssertEqual(state.water, before - cost)
+        XCTAssertEqual(state.dogCoins, before - cost)
         sys.remove(buildingId: model.id)
         XCTAssertNil(grid.buildingId(at: 0, row: 0))
         XCTAssertNil(grid.buildingId(at: 1, row: 0))
-        XCTAssertEqual(state.water, before - cost + cost / 2)
+        XCTAssertEqual(state.dogCoins, before - cost + cost / 2)
         XCTAssertTrue(state.buildings.isEmpty)
     }
 
     func testUpgradeWaterWellSpendsDogCoins() {
-        state.dogCoins = 50
-        guard case .success(let model) = sys.place(type: .waterWell, col: 0, row: 0, payWith: .water) else {
+        state.dogCoins = 500
+        guard case .success(let model) = sys.place(type: .waterWell, col: 0, row: 0) else {
             return XCTFail("place failed")
         }
         let coinsBefore = state.dogCoins

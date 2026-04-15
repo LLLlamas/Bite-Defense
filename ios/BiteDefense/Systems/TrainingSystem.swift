@@ -16,6 +16,7 @@ final class TrainingSystem {
         case noFortCapacity
         case insufficientResources
         case invalidCamp
+        case lockedByLevel
     }
 
     /// Queue a troop of `troopType` at a Training Camp. The troop's level
@@ -30,6 +31,10 @@ final class TrainingSystem {
 
         let campDef = camp.def
         let troopLevel = camp.level
+
+        // Player-level gate (e.g. archer unlocks at player level 3).
+        let troopDefPre = TroopConfig.def(for: troopType)
+        if state.playerLevel < troopDefPre.unlockLevel { return .lockedByLevel }
 
         // Queue cap per camp level.
         let cap = campDef.queueSize(at: camp.level)

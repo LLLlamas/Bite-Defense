@@ -49,13 +49,14 @@ final class BuildingSystem {
 
     @discardableResult
     func place(type: BuildingType, col: Int, row: Int,
-               payWith resource: ResourceKind) -> PlaceResult {
+               payWith resource: ResourceKind = .dogCoins) -> PlaceResult {
+        _ = resource // retained for API compat; placement always pays in Dog Coins.
         let pre = canPlace(type: type, col: col, row: row)
         guard case .success = pre else { return pre }
 
         let def = BuildingConfig.def(for: type)
         let cost = def.placementCost()
-        if cost > 0, !state.spend(cost, from: resource) {
+        if cost > 0, !state.spend(cost, from: .dogCoins) {
             return .insufficientResource
         }
 
@@ -118,9 +119,9 @@ final class BuildingSystem {
         grid.free(col: model.col, row: model.row,
                   width: def.tileWidth, height: def.tileHeight)
         state.buildings.remove(at: idx)
-        // Refund half the placement cost — matches the JS behavior at time of port.
+        // Refund half the placement cost in Dog Coins.
         let refund = def.placementCost() / 2
-        if refund > 0 { state.add(refund, to: .water) }
+        if refund > 0 { state.add(refund, to: .dogCoins) }
         EventBus.shared.send(.buildingRemoved(buildingId: buildingId))
     }
 

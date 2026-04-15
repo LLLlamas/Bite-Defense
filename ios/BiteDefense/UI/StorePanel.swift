@@ -39,7 +39,7 @@ struct StorePanel: View {
                 Text(def.emoji).font(.title2)
                 Text(def.displayName).font(.caption2.bold())
                     .foregroundStyle(.white)
-                Text("\(def.placementCost()) 💧/🥛")
+                Text("\(def.placementCost()) 🪙")
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.85))
                 if def.unique {
@@ -65,7 +65,7 @@ struct StorePanel: View {
             )
             .opacity(disabled ? 0.35 : 1.0)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bouncy)
         .disabled(disabled)
     }
 }
