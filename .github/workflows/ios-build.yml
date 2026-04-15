@@ -26,9 +26,13 @@ jobs:
 
       - name: Select Xcode 16
         # XcodeGen emits objectVersion 77 (Xcode 16 format); match it here.
+        # Use 16.4 rather than 16.2 so the bundled iOS SDK lines up with an
+        # iOS simulator runtime the macos-15 runner actually has installed —
+        # otherwise actool fails with "No simulator runtime version ...
+        # available to use with iphonesimulator SDK version 22C146".
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '16.2'
+          xcode-version: '16.4'
 
       - name: Show Xcode + Swift versions
         run: |
