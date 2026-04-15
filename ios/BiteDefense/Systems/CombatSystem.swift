@@ -94,7 +94,9 @@ final class CombatSystem {
 
     private func moveTroop(_ i: Int, toX: Double, toY: Double,
                            stopDist: Double, dt: Double) {
-        state.troops[i].state = .moving
+        // TroopState has no dedicated "moving" case — `.idle` is the walking/
+        // non-engaged state on the battlefield.
+        state.troops[i].state = .idle
         let t = state.troops[i]
         let dx = toX - t.col
         let dy = toY - t.row
@@ -228,9 +230,10 @@ final class CombatSystem {
     /// Push overlapping units apart and shove them out of building footprints
     /// so troops and cats each occupy their own visual tile. This is a soft,
     /// per-frame pass — not a hard grid lock — which keeps steering smooth.
+    private struct Body { let isTroop: Bool; let idx: Int; var col: Double; var row: Double }
+
     private func separateUnits() {
         // 1) Unit-vs-unit pairwise separation (troops + enemies combined).
-        struct Body { let isTroop: Bool; let idx: Int; var col: Double; var row: Double }
         var bodies: [Body] = []
         bodies.reserveCapacity(state.troops.count + state.enemies.count)
         for i in state.troops.indices where !state.troops[i].isDead
@@ -284,8 +287,7 @@ final class CombatSystem {
     /// If `body` lies inside a building's tile footprint, shift it to the
     /// nearest footprint edge plus a small margin so the unit sits on its own
     /// tile next to the building instead of underneath it.
-    private func pushOutOfBuildings(body: (isTroop: Bool, idx: Int, col: Double, row: Double))
-        -> (isTroop: Bool, idx: Int, col: Double, row: Double) {
+    private func pushOutOfBuildings(body: Body) -> Body {
         var out = body
         let margin = 0.2
         for b in state.buildings {
