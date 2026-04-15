@@ -11,6 +11,7 @@ struct HUDView: View {
             cappedChip(.milk, value: coordinator.state.milk,
                        cap: coordinator.state.storageCap)
             coinChip(value: coordinator.state.dogCoins)
+            bonesChip(value: coordinator.state.premiumBones)
             Spacer()
             levelChip(level: coordinator.state.playerLevel,
                       xp: coordinator.state.playerXP)
@@ -55,6 +56,17 @@ struct HUDView: View {
         }
         .padding(.horizontal, 10).padding(.vertical, 6)
         .background(.black.opacity(0.55), in: Capsule())
+    }
+
+    private func bonesChip(value: Int) -> some View {
+        HStack(spacing: 4) {
+            Text("🦴")
+            Text("\(value)")
+                .font(.caption.monospacedDigit().bold())
+                .foregroundStyle(.white)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .background(.purple.opacity(0.45), in: Capsule())
     }
 
     private func levelChip(level: Int, xp: Int) -> some View {

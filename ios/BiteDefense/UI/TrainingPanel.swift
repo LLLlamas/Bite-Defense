@@ -66,68 +66,133 @@ struct TrainingPanel: View {
         let hasFortSpace = coordinator.state.fortAvailableSlots >= level
         let disabled = queueFull || !canAfford || !hasFortSpace
 
-        Button {
-            _ = coordinator.queueTroop(type)
-        } label: {
-            VStack(spacing: 3) {
-                Text(def.emoji).font(.title2)
-                Text(def.displayName).font(.caption2.bold())
-                    .foregroundStyle(.white)
-                Text("\(cost) 💧/🥛")
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.9))
-                Text(timeString(time))
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.6))
+        VStack(spacing: 4) {
+            Button {
+                _ = coordinator.queueTroop(type)
+            } label: {
+                VStack(spacing: 3) {
+                    Text(def.emoji).font(.title2)
+                    Text(def.displayName).font(.caption2.bold())
+                        .foregroundStyle(.white)
+                    Text("\(cost) 💧/🥛")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.9))
+                    Text(timeString(time))
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.white.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                )
+                .opacity(disabled ? 0.4 : 1.0)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.white.opacity(0.08))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
-            )
-            .opacity(disabled ? 0.4 : 1.0)
+            .buttonStyle(.plain)
+            .disabled(disabled)
+
+            // Top-off button: shown when the only blocker is resources.
+            if !canAfford && !queueFull && hasFortSpace {
+                topOffButton(cost: cost)
+            }
+        }
+    }
+
+    /// Shows a "+N 🦴 → Top up" button that converts premium bones into enough
+    /// of the cheaper resource (water or milk) to afford training.
+    @ViewBuilder
+    private func topOffButton(cost: Int) -> some View {
+        let waterShort = max(0, cost - coordinator.state.water)
+        let milkShort  = max(0, cost - coordinator.state.milk)
+        // Pick the cheaper side to top up — fewer bones required.
+        let resource: ResourceKind = waterShort <= milkShort ? .water : .milk
+        let short = resource == .water ? waterShort : milkShort
+        let bones = coordinator.state.bonesToCover(shortfall: short, resource: resource)
+        let canAffordBones = coordinator.state.canAffordPremium(bones)
+        Button {
+            _ = coordinator.state.topUpShortfallFlex(needed: cost)
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "bolt.fill").font(.caption2)
+                Text("Top up \(bones)🦴")
+                    .font(.system(size: 9, design: .monospaced).bold())
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6).padding(.vertical, 3)
+            .background(canAffordBones ? Color.purple.opacity(0.85)
+                                        : Color.gray.opacity(0.4),
+                        in: RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
-        .disabled(disabled)
+        .disabled(!canAffordBones)
     }
 
     @ViewBuilder
     private func queueView(queue: [TrainingQueueItem]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(queue.enumerated()), id: \.element.id) { idx, item in
-                let def = TroopConfig.def(for: item.troopType)
-                HStack(spacing: 8) {
-                    Text(def.emoji)
-                    Text(def.displayName)
-                        .font(.caption2.bold())
-                        .foregroundStyle(.white)
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color.white.opacity(0.15))
-                            if idx == 0 {
-                                Capsule().fill(Color.green.opacity(0.8))
-                                    .frame(width: geo.size.width * item.progress)
-                            }
+                queueRow(idx: idx, item: item)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func queueRow(idx: Int, item: TrainingQueueItem) -> some View {
+        let def = TroopConfig.def(for: item.troopType)
+        let boneCost = TrainingSystem.speedUpCost(secondsRemaining: item.timeRemaining)
+        let canAffordBones = coordinator.state.canAffordPremium(boneCost)
+        HStack(spacing: 8) {
+            Text(def.emoji)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(def.displayName) Lv\(item.level)")
+                    .font(.caption2.bold())
+                    .foregroundStyle(.white)
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.white.opacity(0.15))
+                        if idx == 0 {
+                            Capsule().fill(Color.green.opacity(0.8))
+                                .frame(width: geo.size.width * item.progress)
                         }
                     }
-                    .frame(height: 5)
-                    Text(timeString(max(0, item.timeRemaining)))
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.8))
-                    Button {
-                        coordinator.cancelTrainingQueueItem(index: idx)
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.red.opacity(0.85))
-                    }
-                    .buttonStyle(.plain)
                 }
+                .frame(height: 4)
             }
+            Text(timeString(max(0, item.timeRemaining)))
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.8))
+                .frame(minWidth: 34, alignment: .trailing)
+
+            // Speed-up with premium bones.
+            Button {
+                _ = coordinator.speedUpTrainingItem(index: idx)
+            } label: {
+                HStack(spacing: 2) {
+                    Image(systemName: "bolt.fill")
+                    Text("\(boneCost)🦴")
+                        .font(.system(size: 9, design: .monospaced).bold())
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6).padding(.vertical, 4)
+                .background(canAffordBones ? Color.purple.opacity(0.85)
+                                            : Color.gray.opacity(0.4),
+                            in: RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canAffordBones)
+
+            Button {
+                coordinator.cancelTrainingQueueItem(index: idx)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.red.opacity(0.85))
+            }
+            .buttonStyle(.plain)
         }
     }
 

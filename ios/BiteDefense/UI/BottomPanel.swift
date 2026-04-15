@@ -13,8 +13,7 @@ struct BottomPanel: View {
                 Button {
                     coordinator.startPreBattle()
                 } label: {
-                    Label("Start Wave \(coordinator.state.currentWave + 1)",
-                          systemImage: "flag.checkered")
+                    Label(startWaveLabel, systemImage: "flag.checkered")
                         .font(.callout.bold())
                 }
                 .buttonStyle(.borderedProminent)
@@ -36,6 +35,16 @@ struct BottomPanel: View {
     }
 
     @ViewBuilder
+    /// "Start Wave" during a fresh run (no streak). Only shows the number
+    /// when the player is actively streaking — matches JS behavior where
+    /// wave numbers only advance during a continued run.
+    private var startWaveLabel: String {
+        if coordinator.state.waveStreak > 0 {
+            return "Continue · Wave \(coordinator.state.currentWave + 1)"
+        }
+        return "Start Wave"
+    }
+
     private func difficultyChip(level: Int) -> some View {
         let tier = DifficultyConfig.tier(level)
         let unlocked = level <= coordinator.state.maxDifficultyUnlocked
@@ -78,12 +87,24 @@ struct PreBattleBar: View {
     @Bindable var coordinator: GameCoordinator
 
     var body: some View {
+        Group {
+            if let target = coordinator.pendingTroopMove {
+                confirmMoveBar(target: target)
+            } else {
+                readyBar
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(.black.opacity(0.75))
+    }
+
+    private var readyBar: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Position your troops")
                     .font(.callout.bold())
                     .foregroundStyle(.white)
-                Text("Tap a dog, then a tile to move.")
+                Text("Tap a dog, then a tile to propose a move.")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.8))
             }
@@ -94,15 +115,39 @@ struct PreBattleBar: View {
             Button {
                 coordinator.deployBattle()
             } label: {
-                Label(coordinator.hasTroops ? "Deploy" : "Deploy Empty",
-                      systemImage: "flag.fill")
+                Label(coordinator.hasTroops ? "Ready for enemies!" : "Fight Empty",
+                      systemImage: "shield.lefthalf.filled")
                     .font(.callout.bold())
             }
             .buttonStyle(.borderedProminent)
             .tint(.green)
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
-        .background(.black.opacity(0.75))
+    }
+
+    @ViewBuilder
+    private func confirmMoveBar(target: TilePos) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Move to (\(target.col), \(target.row))?")
+                    .font(.callout.bold())
+                    .foregroundStyle(.white)
+                Text("Tap another tile to pick a different spot.")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+            Spacer()
+            Button("Cancel") { coordinator.cancelPendingMove() }
+                .buttonStyle(.bordered)
+                .tint(.gray)
+            Button {
+                coordinator.confirmPendingMove()
+            } label: {
+                Label("Confirm Move", systemImage: "checkmark.circle.fill")
+                    .font(.callout.bold())
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.blue)
+        }
     }
 }
 

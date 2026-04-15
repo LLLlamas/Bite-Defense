@@ -47,6 +47,9 @@ final class WaveSystem {
     /// callable from the result cards.
     func goHome() {
         state.waveStreak = 0
+        // Wave number only advances during an active streak — going home
+        // resets it so the next "Start Wave" begins fresh at wave 1.
+        state.currentWave = 0
         garrisonAllTroops()
         state.enemies.removeAll()
         pending.removeAll()
@@ -179,6 +182,7 @@ final class WaveSystem {
         state.enemies.removeAll()
         pending.removeAll()
         state.waveStreak = 0
+        state.currentWave = 0
         garrisonAllTroops()
 
         state.lastWaveFailInfo = (waterStolen, milkStolen)

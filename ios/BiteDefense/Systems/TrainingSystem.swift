@@ -61,6 +61,34 @@ final class TrainingSystem {
         return .success
     }
 
+    /// Cost in premium bones to finish a queue item instantly. Matches the JS
+    /// `BuildingSystem.speedUp` formula: 2 bones per minute remaining, min 1.
+    static func speedUpCost(secondsRemaining: Double) -> Int {
+        max(1, Int(ceil(secondsRemaining / 60.0)) * 2)
+    }
+
+    /// Consume `speedUpCost` bones to finish the targeted queue item now.
+    /// Returns true on success.
+    @discardableResult
+    func speedUp(campId: Int, index: Int) -> Bool {
+        guard var q = state.trainingQueues[campId],
+              q.indices.contains(index) else { return false }
+        let item = q[index]
+        let cost = Self.speedUpCost(secondsRemaining: item.timeRemaining)
+        guard state.spendPremiumBones(cost) else { return false }
+        // Immediately finish: remove from queue and spawn.
+        q.remove(at: index)
+        state.trainingQueues[campId] = q
+        if let camp = state.buildings.first(where: { $0.id == campId }),
+           camp.type == .trainingCamp {
+            spawnGarrisonedTroop(type: item.troopType, level: item.level,
+                                 nearCamp: camp)
+            state.addXP(5)
+            state.add(1, to: .dogCoins)
+        }
+        return true
+    }
+
     /// Cancel a pending queue item (by index). Half-refunds water (matches JS).
     func cancel(campId: Int, index: Int) {
         guard var q = state.trainingQueues[campId],

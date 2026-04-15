@@ -22,6 +22,20 @@ final class GameCoordinator {
     /// 1x, 2x, 4x speed during BATTLE phase (purely visual — scales dt).
     var battleSpeed: Double = 1.0
 
+    /// Tile the player has proposed moving the selected troop to during
+    /// PRE_BATTLE. Nil means no pending move. Requires a second tap on
+    /// "Confirm Move" before the troop actually walks.
+    var pendingTroopMove: TilePos? = nil
+
+    /// Whether the floating Store panel is open. The in-flow store (for
+    /// placement/training) opens implicitly; this is the dedicated 🛒 toggle.
+    var storeOpen: Bool = false
+
+    /// Whether the intro/info card is visible. Shown automatically on the
+    /// first entry into BUILDING phase; also toggleable via the ℹ️ button.
+    var infoCardVisible: Bool = false
+    private var hasShownInfoOnce: Bool = false
+
     init() {
         let state = GameState()
         let grid = Grid()
@@ -146,6 +160,29 @@ final class GameCoordinator {
         trainingSystem.cancel(campId: id, index: index)
     }
 
+    @discardableResult
+    func speedUpTrainingItem(index: Int) -> Bool {
+        guard let id = trainingPanelCampId else { return false }
+        return trainingSystem.speedUp(campId: id, index: index)
+    }
+
+    // MARK: - Info card / Store toggle
+
+    func toggleInfoCard() {
+        infoCardVisible.toggle()
+        hasShownInfoOnce = true
+    }
+
+    func dismissInfoCard() { infoCardVisible = false }
+
+    func showInfoCardIfFirstTime() {
+        guard !hasShownInfoOnce else { return }
+        infoCardVisible = true
+        hasShownInfoOnce = true
+    }
+
+    func toggleStore() { storeOpen.toggle() }
+
     // MARK: - Wave controls
 
     func startPreBattle() { waveSystem.enterPreBattle() }
@@ -193,33 +230,48 @@ final class GameCoordinator {
         }
     }
 
-    /// Pre-battle: tap a troop to select, tap a tile to move the selected
-    /// troop there.
+    /// Pre-battle: tap a troop to select, tap a tile to *propose* a move
+    /// (shows a ghost preview + Confirm/Cancel in the bar). Requires an
+    /// explicit confirmation to actually move — prevents accidental taps.
     private func handlePreBattleTap(col: Int, row: Int) {
-        // If tapping a troop, select it.
+        // Re-tap a troop → re-select it and clear any pending target.
         let tappedTroopIdx = state.troops.firstIndex(where: {
             !$0.isDead && $0.state != .garrisoned &&
             Int($0.col.rounded()) == col && Int($0.row.rounded()) == row
         })
         if let idx = tappedTroopIdx {
             state.selectedTroopId = state.troops[idx].id
+            pendingTroopMove = nil
             return
         }
 
-        // Otherwise, if a troop is selected and the target tile is walkable, move it.
-        guard let id = state.selectedTroopId,
-              let tIdx = state.troops.firstIndex(where: { $0.id == id }) else {
-            state.selectedTroopId = nil
+        // Need a selected troop to propose a target.
+        guard state.selectedTroopId != nil else {
+            pendingTroopMove = nil
             return
         }
-        // Can't move onto a building.
+        // Can't target a tile occupied by a building.
         if grid.buildingId(at: col, row: row) != nil { return }
-        state.troops[tIdx].col = Double(col) + 0.5
-        state.troops[tIdx].row = Double(row) + 0.5
+        pendingTroopMove = TilePos(col: col, row: row)
+    }
+
+    /// Commit the pending troop move (if any).
+    func confirmPendingMove() {
+        guard let target = pendingTroopMove,
+              let id = state.selectedTroopId,
+              let tIdx = state.troops.firstIndex(where: { $0.id == id }) else {
+            pendingTroopMove = nil
+            return
+        }
+        state.troops[tIdx].col = Double(target.col) + 0.5
+        state.troops[tIdx].row = Double(target.row) + 0.5
         EventBus.shared.send(.troopMoved(troopId: id,
                                           col: state.troops[tIdx].col,
                                           row: state.troops[tIdx].row))
+        pendingTroopMove = nil
     }
+
+    func cancelPendingMove() { pendingTroopMove = nil }
 }
 
 struct TilePos: Hashable { let col: Int; let row: Int }

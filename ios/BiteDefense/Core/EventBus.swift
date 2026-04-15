@@ -17,6 +17,8 @@ enum GameEvent {
     // Resources
     case resourceGained(kind: ResourceKind, amount: Int)
     case resourceSpent(kind: ResourceKind, amount: Int)
+    case premiumBonesGained(amount: Int)
+    case premiumBonesSpent(amount: Int)
 
     // Training / troops
     case trainingQueued(buildingId: Int, troopType: TroopType, level: Int)

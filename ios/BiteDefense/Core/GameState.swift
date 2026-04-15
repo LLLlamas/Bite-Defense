@@ -193,6 +193,66 @@ final class GameState {
     static func hqMaxHP(level: Int) -> Int {
         hqMaxHP[min(max(level, 1), hqMaxHP.count) - 1]
     }
+
+    // MARK: - Premium bones (soft-currency bridge)
+    //
+    // Conversion rates — direct port of `GameState.js`:
+    //   1 bone = 25 water or milk
+    //   1 bone = 5 dog coins
+    static let bonesPerBaseResource = 25
+    static let bonesPerDogCoin = 5
+
+    func canAffordPremium(_ amount: Int) -> Bool { premiumBones >= amount }
+
+    @discardableResult
+    func spendPremiumBones(_ amount: Int) -> Bool {
+        guard premiumBones >= amount else { return false }
+        premiumBones -= amount
+        EventBus.shared.send(.premiumBonesSpent(amount: amount))
+        return true
+    }
+
+    func addPremiumBones(_ amount: Int) {
+        guard amount > 0 else { return }
+        premiumBones += amount
+        EventBus.shared.send(.premiumBonesGained(amount: amount))
+    }
+
+    /// Bones needed to cover a shortfall in a specific resource.
+    func bonesToCover(shortfall: Int, resource: ResourceKind) -> Int {
+        guard shortfall > 0 else { return 0 }
+        let rate = resource == .dogCoins ? Self.bonesPerDogCoin : Self.bonesPerBaseResource
+        return Int(ceil(Double(shortfall) / Double(rate)))
+    }
+
+    /// Top up a specific resource to `needed` by converting bones. Returns
+    /// `true` on success (bones spent, resource raised); `false` if the
+    /// player doesn't have enough bones.
+    @discardableResult
+    func topUpShortfall(needed: Int, resource: ResourceKind) -> Bool {
+        let have: Int
+        switch resource {
+        case .water: have = water
+        case .milk: have = milk
+        case .dogCoins: have = dogCoins
+        }
+        let short = needed - have
+        guard short > 0 else { return true }
+        let bones = bonesToCover(shortfall: short, resource: resource)
+        guard spendPremiumBones(bones) else { return false }
+        add(short, to: resource)
+        return true
+    }
+
+    /// Flex top-up — picks whichever of water/milk needs fewer bones.
+    @discardableResult
+    func topUpShortfallFlex(needed: Int) -> Bool {
+        let waterShort = max(0, needed - water)
+        let milkShort  = max(0, needed - milk)
+        if waterShort == 0 || milkShort == 0 { return true }
+        let choose: ResourceKind = waterShort <= milkShort ? .water : .milk
+        return topUpShortfall(needed: needed, resource: choose)
+    }
 }
 
 enum ResourceKind: String, CaseIterable, Hashable {

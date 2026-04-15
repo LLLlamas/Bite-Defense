@@ -16,6 +16,7 @@ final class GameScene: SKScene {
     private var troops: [Int: TroopNode] = [:]
     private var enemies: [Int: EnemyNode] = [:]
     private var spawnIndicator: SKNode?
+    private var pendingMovePreview: SKShapeNode?
     private var cancellables = Set<AnyCancellable>()
 
     private var lastUpdateTime: TimeInterval = 0
@@ -62,6 +63,7 @@ final class GameScene: SKScene {
         coordinator?.tick(dt: dt)
 
         refreshPlacementPreview()
+        refreshPendingMovePreview()
         syncUnitPositions()
         syncSpawnIndicator()
     }
@@ -129,11 +131,14 @@ final class GameScene: SKScene {
                 troops.removeAll()
                 spawnIndicator?.removeFromParent()
                 spawnIndicator = nil
+                pendingMovePreview?.removeFromParent()
+                pendingMovePreview = nil
             }
             refreshDebugLabel()
         case .cameraMoved:
             refreshDebugLabel()
         case .resourceGained, .resourceSpent,
+             .premiumBonesGained, .premiumBonesSpent,
              .trainingQueued, .trainingCancelled,
              .trainingBlockedNoFort, .troopTrained,
              .waveStarted, .waveComplete, .waveFailed,
@@ -216,46 +221,63 @@ final class GameScene: SKScene {
         let showing = (state.phase == .preBattle || state.phase == .battle)
         if showing, let corner = state.waveCorner {
             if spawnIndicator == nil {
-                spawnIndicator = makeSpawnIndicator()
-                addChild(spawnIndicator!)
+                let node = makeSpawnIndicator()
+                spawnIndicator = node
+                // Parent to the camera so it stays pinned on-screen regardless
+                // of zoom or pan — user must always see which corner cats are
+                // coming from.
+                gameCamera.addChild(node)
             }
-            spawnIndicator?.position = spawnCornerPosition(corner)
+            spawnIndicator?.position = screenCornerPosition(corner)
         } else {
             spawnIndicator?.removeFromParent()
             spawnIndicator = nil
         }
     }
 
-    private func spawnCornerPosition(_ corner: Int) -> CGPoint {
-        let maxCR = Double(Constants.gridCols - 1)
-        let cr: (Double, Double)
+    /// Position in **camera-local** (screen) coordinates for the given corner.
+    /// Since the indicator is a child of the camera, this always renders at
+    /// the matching screen corner with a small inset.
+    private func screenCornerPosition(_ corner: Int) -> CGPoint {
+        let inset: CGFloat = 46
+        let w = size.width
+        let h = size.height
+        // Camera is centered: local origin (0,0) is the screen center.
+        let halfW = w / 2 - inset
+        let halfH = h / 2 - inset
+        // Account for camera zoom — children of a scaled camera get scaled
+        // too, so we divide positional offsets by the camera scale.
+        let sx = gameCamera.xScale
+        let sy = gameCamera.yScale
+        let dx = halfW * sx
+        let dy = halfH * sy
         switch corner {
-        case 0: cr = (0, 0)
-        case 1: cr = (maxCR, 0)
-        case 2: cr = (0, maxCR)
-        case 3: cr = (maxCR, maxCR)
-        default: cr = (0, 0)
+        case 0: return CGPoint(x: -dx, y:  dy) // TL
+        case 1: return CGPoint(x:  dx, y:  dy) // TR
+        case 2: return CGPoint(x: -dx, y: -dy) // BL
+        case 3: return CGPoint(x:  dx, y: -dy) // BR
+        default: return .zero
         }
-        return IsoMath.cartToWorld(col: cr.0, row: cr.1)
     }
 
     private func makeSpawnIndicator() -> SKNode {
         let container = SKNode()
-        container.zPosition = 40
+        container.zPosition = 1000 // above the HUD's SpriteView content
         let outer = SKShapeNode(circleOfRadius: 22)
-        outer.strokeColor = SKColor(red: 1.0, green: 0.3, blue: 0.25, alpha: 0.9)
+        outer.strokeColor = SKColor(red: 1.0, green: 0.3, blue: 0.25, alpha: 0.95)
         outer.lineWidth = 3
-        outer.fillColor = .clear
+        outer.fillColor = SKColor(red: 0, green: 0, blue: 0, alpha: 0.5)
         container.addChild(outer)
-        let inner = SKShapeNode(circleOfRadius: 10)
-        inner.fillColor = SKColor(red: 1.0, green: 0.3, blue: 0.25, alpha: 0.3)
-        inner.strokeColor = .clear
-        container.addChild(inner)
+        let cat = SKLabelNode(text: "😾")
+        cat.fontSize = 18
+        cat.verticalAlignmentMode = .center
+        cat.horizontalAlignmentMode = .center
+        container.addChild(cat)
         let pulse = SKAction.sequence([
-            SKAction.scale(to: 1.3, duration: 0.6),
-            SKAction.scale(to: 1.0, duration: 0.6)
+            SKAction.scale(to: 1.25, duration: 0.55),
+            SKAction.scale(to: 1.0, duration: 0.55)
         ])
-        container.run(SKAction.repeatForever(pulse))
+        outer.run(SKAction.repeatForever(pulse))
         return container
     }
 
@@ -264,6 +286,35 @@ final class GameScene: SKScene {
         for (id, node) in buildings {
             node.setSelected(id == selectedId)
         }
+    }
+
+    private func refreshPendingMovePreview() {
+        guard let coordinator else { return }
+        guard let target = coordinator.pendingTroopMove else {
+            pendingMovePreview?.removeFromParent()
+            pendingMovePreview = nil
+            return
+        }
+        let node: SKShapeNode
+        if let existing = pendingMovePreview {
+            node = existing
+        } else {
+            let shape = SKShapeNode(circleOfRadius: 14)
+            shape.strokeColor = SKColor(red: 0.25, green: 0.78, blue: 1.0, alpha: 0.95)
+            shape.fillColor = SKColor(red: 0.25, green: 0.78, blue: 1.0, alpha: 0.25)
+            shape.lineWidth = 2
+            shape.zPosition = 48
+            let pulse = SKAction.repeatForever(SKAction.sequence([
+                SKAction.scale(to: 1.2, duration: 0.45),
+                SKAction.scale(to: 1.0, duration: 0.45)
+            ]))
+            shape.run(pulse)
+            addChild(shape)
+            pendingMovePreview = shape
+            node = shape
+        }
+        node.position = IsoMath.cartToWorld(col: Double(target.col) + 0.5,
+                                            row: Double(target.row) + 0.5)
     }
 
     private func refreshPlacementPreview() {
