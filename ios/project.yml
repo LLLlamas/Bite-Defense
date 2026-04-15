@@ -28,14 +28,17 @@ targets:
           - "**/.DS_Store"
     resources:
       - path: BiteDefense/Resources/Assets.xcassets
-      - path: BiteDefense/Resources/LaunchScreen.storyboard
     info:
       path: BiteDefense/App/Info.plist
       properties:
         CFBundleDisplayName: Bite Defense
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        UILaunchStoryboardName: LaunchScreen
+        # Info.plist launch screen (iOS 14+). Avoids ibtool/storyboard compile,
+        # which fails on CI when the runner's simulator runtime doesn't match
+        # the SDK (e.g. "iOS 18.2 Platform Not Installed").
+        UILaunchScreen:
+          UIColorName: LaunchBackground
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
