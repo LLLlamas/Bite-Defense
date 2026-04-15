@@ -18,7 +18,7 @@ final class GameState {
     private static let storageCaps = [500, 1200, 2500, 5000, 10000, 18000, 30000, 50000, 80000, 120000]
 
     var storageCap: Int {
-        storageCaps[min(hqLevel - 1, GameState.storageCaps.count - 1)]
+        GameState.storageCaps[min(hqLevel - 1, GameState.storageCaps.count - 1)]
     }
 
     /// Snapshot of placed buildings. Sourced of truth for SwiftUI; the SK scene
