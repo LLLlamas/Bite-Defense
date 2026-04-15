@@ -45,6 +45,7 @@ struct BottomPanel: View {
         return "Start Wave"
     }
 
+    @ViewBuilder
     private func difficultyChip(level: Int) -> some View {
         let tier = DifficultyConfig.tier(level)
         let unlocked = level <= coordinator.state.maxDifficultyUnlocked
