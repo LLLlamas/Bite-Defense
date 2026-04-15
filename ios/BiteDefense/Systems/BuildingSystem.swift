@@ -54,10 +54,8 @@ final class BuildingSystem {
 
         let id = state.mintBuildingId()
         var model = BuildingModel(id: id, type: type, col: col, row: row, level: 1)
-        if type == .dogHQ {
-            model.maxHP = GameState.hqMaxHP(level: 1)
-            model.hp = model.maxHP
-        }
+        model.maxHP = GameState.buildingMaxHP(type: type, level: 1)
+        model.hp = model.maxHP
         // Kick off construction — operational systems skip the building until
         // `buildTimeRemaining` hits zero (see ConstructionSystem).
         let duration = Double(def.buildTime.first ?? 0)
@@ -140,9 +138,10 @@ final class BuildingSystem {
         }
 
         model.level += 1
+        // Heal + scale max HP on upgrade for every building type.
+        model.maxHP = GameState.buildingMaxHP(type: model.type, level: model.level)
+        model.hp = model.maxHP
         if model.type == .dogHQ {
-            model.maxHP = GameState.hqMaxHP(level: model.level)
-            model.hp = model.maxHP
             state.hqLevel = model.level
         }
         // Upgrade goes through the same build-timer pipeline. `buildTime`

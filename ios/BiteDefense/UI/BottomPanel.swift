@@ -7,79 +7,22 @@ struct BottomPanel: View {
     @Bindable var coordinator: GameCoordinator
 
     var body: some View {
-        HStack(alignment: .center, spacing: 14) {
-            infoColumn
-            Spacer(minLength: 4)
-            VStack(spacing: 6) {
-                Text("SELECT DIFFICULTY")
-                    .font(.system(size: 10, design: .rounded).weight(.heavy))
-                    .tracking(0.8)
-                    .foregroundStyle(.white.opacity(0.65))
-                difficultyRow
-                Text(difficultyBlurb)
-                    .font(.system(size: 10, design: .rounded).weight(.semibold))
-                    .foregroundStyle(.yellow.opacity(0.9))
+        VStack(spacing: 8) {
+            difficultyRow
+            HStack(spacing: 10) {
                 Button {
                     coordinator.requestStartWave()
                 } label: {
-                    Text(startWaveLabel)
-                        .font(.system(size: 15, design: .rounded).weight(.heavy))
-                        .tracking(0.6)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 22).padding(.vertical, 9)
-                        .background(
-                            Capsule().fill(
-                                LinearGradient(colors: [Color(red: 0.95, green: 0.35, blue: 0.35),
-                                                        Color(red: 0.80, green: 0.18, blue: 0.22)],
-                                               startPoint: .top, endPoint: .bottom)
-                            )
-                        )
-                        .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 1))
+                    Label(startWaveLabel, systemImage: "flag.checkered")
+                        .font(.callout.bold())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
             }
-            Spacer(minLength: 4)
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
-        .background(
-            LinearGradient(colors: [Color.black.opacity(0.55), Color.black.opacity(0.78)],
-                           startPoint: .top, endPoint: .bottom)
-        )
-    }
-
-    private var infoColumn: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            infoRow(label: "DIFFICULTY",
-                    value: DifficultyConfig.tier(coordinator.state.selectedDifficulty)
-                           .displayName.uppercased(),
-                    valueColor: .yellow)
-            infoRow(label: "TROOPS",
-                    value: "\(coordinator.state.troops.filter { $0.state != .dead }.count)",
-                    valueColor: .white)
-            infoRow(label: "😾 CATS",
-                    value: "-",
-                    valueColor: .white.opacity(0.8))
-        }
-        .frame(minWidth: 110, alignment: .leading)
-    }
-
-    private func infoRow(label: String, value: String, valueColor: Color) -> some View {
-        HStack {
-            Text(label)
-                .font(.system(size: 10, design: .rounded).weight(.heavy))
-                .tracking(0.5)
-                .foregroundStyle(.white.opacity(0.55))
-            Spacer(minLength: 6)
-            Text(value)
-                .font(.system(size: 13, design: .rounded).weight(.heavy))
-                .foregroundStyle(valueColor)
-        }
-    }
-
-    private var difficultyBlurb: String {
-        let tier = DifficultyConfig.tier(coordinator.state.selectedDifficulty)
-        return "\(tier.displayName) · \(String(format: "%.1fx", tier.rewardMult)) rewards"
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .background(.black.opacity(0.55))
     }
 
     private var difficultyRow: some View {

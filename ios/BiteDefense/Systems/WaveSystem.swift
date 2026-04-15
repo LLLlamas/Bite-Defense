@@ -70,7 +70,8 @@ final class WaveSystem {
             spawnEnemy(first)
         }
 
-        // Failure: HQ destroyed OR all troops dead while enemies remain.
+        // Failure: HQ destroyed, all troops dead while enemies remain, OR
+        // every owned building sits below half HP (cats have "won the siege").
         let hqAlive = (state.hq?.hp ?? 0) > 0
         let troopsAlive = state.troops.contains { !$0.isDead && $0.state != .garrisoned }
         let enemiesRemaining = !state.enemies.isEmpty || !pending.isEmpty
@@ -80,6 +81,10 @@ final class WaveSystem {
             return
         }
         if !troopsAlive && enemiesRemaining {
+            failWave()
+            return
+        }
+        if allBuildingsBelowHalfHP() {
             failWave()
             return
         }
@@ -193,6 +198,15 @@ final class WaveSystem {
         EventBus.shared.send(.waveFailed(waterStolen: waterStolen,
                                           milkStolen: milkStolen))
         EventBus.shared.send(.phaseChanged(phase: .waveFailed))
+    }
+
+    /// True when every building the player owns is below 50% HP. With no
+    /// buildings at all this returns `false` (the HQ-destroyed check above
+    /// already covers the "no HQ" case).
+    private func allBuildingsBelowHalfHP() -> Bool {
+        let owned = state.buildings.filter { $0.maxHP > 0 }
+        guard !owned.isEmpty else { return false }
+        return owned.allSatisfy { Double($0.hp) < Double($0.maxHP) * 0.5 }
     }
 
     // MARK: - Troop deploy / garrison

@@ -35,6 +35,7 @@ final class TroopNode: SKNode {
         super.init()
         name = "Troop.\(model.id)"
         zPosition = 10
+        addChild(Self.makeAura(color: def.color.skColor))
         addChild(body)
         addChild(emoji)
         addChild(hpBar)
@@ -64,6 +65,31 @@ final class TroopNode: SKNode {
             selectionRing?.removeFromParent()
             selectionRing = nil
         }
+    }
+
+    /// Soft pulsing ring underneath the troop — reads as a unit "aura" like
+    /// in the reference gif. Sits below everything else on the node so the
+    /// body/emoji/HP bar paint on top.
+    private static func makeAura(color: SKColor) -> SKShapeNode {
+        let ring = SKShapeNode(circleOfRadius: 18)
+        ring.strokeColor = color.withAlphaComponent(0.55)
+        ring.fillColor = color.withAlphaComponent(0.18)
+        ring.lineWidth = 2
+        ring.zPosition = -2
+        ring.setScale(0.85)
+        ring.alpha = 0.9
+        let pulseOut = SKAction.group([
+            SKAction.scale(to: 1.15, duration: 0.9),
+            SKAction.fadeAlpha(to: 0.25, duration: 0.9)
+        ])
+        let pulseIn = SKAction.group([
+            SKAction.scale(to: 0.85, duration: 0.9),
+            SKAction.fadeAlpha(to: 0.9, duration: 0.9)
+        ])
+        pulseOut.timingMode = .easeInEaseOut
+        pulseIn.timingMode = .easeInEaseOut
+        ring.run(SKAction.repeatForever(SKAction.sequence([pulseOut, pulseIn])))
+        return ring
     }
 
     private func updatePosition(col: Double, row: Double) {

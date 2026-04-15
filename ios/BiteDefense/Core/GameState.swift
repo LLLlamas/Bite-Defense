@@ -207,6 +207,21 @@ final class GameState {
         hqMaxHP[min(max(level, 1), hqMaxHP.count) - 1]
     }
 
+    /// Max HP for any building type at a given level. Cats will attack any
+    /// of these; wave fail uses aggregate building damage as a loss signal.
+    static func buildingMaxHP(type: BuildingType, level: Int) -> Int {
+        let lv = max(1, level)
+        switch type {
+        case .dogHQ:        return hqMaxHP(level: lv)
+        case .fort:         return 250 + 70 * (lv - 1)
+        case .trainingCamp: return 200 + 60 * (lv - 1)
+        case .archerTower:  return 150 + 50 * (lv - 1)
+        case .wall:         return 150 + 50 * (lv - 1)
+        case .waterWell:    return 120 + 40 * (lv - 1)
+        case .milkFarm:     return 120 + 40 * (lv - 1)
+        }
+    }
+
     // MARK: - Construction
 
     /// True only if the HQ exists AND has finished construction.
