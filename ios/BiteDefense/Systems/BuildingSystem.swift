@@ -53,7 +53,11 @@ final class BuildingSystem {
         }
 
         let id = state.mintBuildingId()
-        let model = BuildingModel(id: id, type: type, col: col, row: row, level: 1)
+        var model = BuildingModel(id: id, type: type, col: col, row: row, level: 1)
+        if type == .dogHQ {
+            model.maxHP = GameState.hqMaxHP(level: 1)
+            model.hp = model.maxHP
+        }
         grid.occupy(col: col, row: row,
                     width: def.tileWidth, height: def.tileHeight,
                     buildingId: id)
@@ -127,8 +131,12 @@ final class BuildingSystem {
         }
 
         model.level += 1
+        if model.type == .dogHQ {
+            model.maxHP = GameState.hqMaxHP(level: model.level)
+            model.hp = model.maxHP
+            state.hqLevel = model.level
+        }
         state.buildings[idx] = model
-        if model.type == .dogHQ { state.hqLevel = model.level }
         EventBus.shared.send(.buildingUpgraded(buildingId: buildingId, newLevel: model.level))
         return true
     }

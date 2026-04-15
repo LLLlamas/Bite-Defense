@@ -117,12 +117,14 @@ final class TrainingSystem {
         let col = Double(anchor.col) + Double(anchor.def.tileWidth) / 2.0
         let row = Double(anchor.row) + Double(anchor.def.tileHeight) / 2.0
 
+        let hp = TroopConfig.def(for: type).hp(level: level)
         let troop = TroopModel(
             id: id, type: type, level: level,
             col: col, row: row,
-            hp: TroopConfig.def(for: type).hp(level: level),
+            hp: hp, maxHP: hp,
             state: .garrisoned,
-            fortId: fort?.id
+            fortId: fort?.id,
+            attackCooldown: 0
         )
         state.troops.append(troop)
         EventBus.shared.send(.troopTrained(troopId: id, troopType: type, level: level))

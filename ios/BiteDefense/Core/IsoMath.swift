@@ -18,6 +18,16 @@ enum IsoMath {
         CGPoint(x: CGFloat(col) * tileSize, y: -CGFloat(row) * tileSize)
     }
 
+    /// Same as `cartToWorld(col:row:)` but accepts continuous float positions —
+    /// used for units moving between tiles.
+    @inlinable
+    static func cartToWorld(col: Double, row: Double,
+                            offset: CGPoint = .zero,
+                            tileSize: CGFloat = Constants.tileSize) -> CGPoint {
+        CGPoint(x: CGFloat(col) * tileSize + offset.x,
+                y: -CGFloat(row) * tileSize + offset.y)
+    }
+
     /// World-space point → (col, row) as floating values (caller floors for tile pick).
     @inlinable
     static func worldToCart(_ point: CGPoint, tileSize: CGFloat = Constants.tileSize) -> (col: Double, row: Double) {

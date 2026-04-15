@@ -12,6 +12,7 @@ enum GameEvent {
     case buildingMoved(buildingId: Int, col: Int, row: Int)
     case buildingRemoved(buildingId: Int)
     case buildingUpgraded(buildingId: Int, newLevel: Int)
+    case buildingDamaged(buildingId: Int, hp: Int, maxHP: Int, amount: Int)
 
     // Resources
     case resourceGained(kind: ResourceKind, amount: Int)
@@ -22,6 +23,23 @@ enum GameEvent {
     case trainingCancelled(buildingId: Int)
     case trainingBlockedNoFort(buildingId: Int)
     case troopTrained(troopId: Int, troopType: TroopType, level: Int)
+
+    // Battle lifecycle
+    case phaseChanged(phase: GamePhase)
+    case waveStarted(wave: Int, corner: Int)
+    case waveComplete(reward: WaveReward)
+    case waveFailed(waterStolen: Int, milkStolen: Int)
+
+    // Combat
+    case enemySpawned(enemy: EnemyModel)
+    case enemyDamaged(enemyId: Int, amount: Int, col: Double, row: Double)
+    case enemyDied(enemyId: Int)
+    case troopDamaged(troopId: Int, amount: Int, col: Double, row: Double)
+    case troopDied(troopId: Int)
+    case troopDeployed(troopId: Int)
+    case troopMoved(troopId: Int, col: Double, row: Double)
+    case projectileFired(fromCol: Double, fromRow: Double,
+                         toCol: Double, toRow: Double, damage: Int)
 
     // Progression
     case playerLeveledUp(newLevel: Int)

@@ -1,44 +1,60 @@
 import Foundation
 import Observation
 
-/// Pure model state. Observed by SwiftUI for the HUD/store; mutated by systems
-/// (`BuildingSystem` etc.). Mirrors the data half of `GameState.js`.
+/// High-level game phase. Mirrors JS `PHASE`.
+enum GamePhase: String, Hashable, Codable {
+    case building
+    case preBattle
+    case battle
+    case waveComplete
+    case waveFailed
+}
+
+/// Pure model state. Observed by SwiftUI for the HUD/store; mutated by systems.
 @Observable
 final class GameState {
-    // Resources — displayed as Int, but accumulate fractionally between ticks
-    // so slow generation rates (e.g. 3/min = 0.05/sec) work without rounding.
+    // MARK: - Resources
     var water: Int = 250
     var milk: Int = 250
     var dogCoins: Int = 5
     var premiumBones: Int = 0
 
-    /// Private fractional carry-over for passive generation (ResourceSystem).
     @ObservationIgnored private(set) var waterFraction: Double = 0
     @ObservationIgnored private(set) var milkFraction: Double = 0
 
-    // Player progression
+    // MARK: - Progression
     var playerLevel: Int = 1
     var playerXP: Int = 0
     var hqLevel: Int = 1
 
-    // Storage cap per HQ level — direct port of `STORAGE_CAPS` from the JS.
     private static let storageCaps = [500, 1200, 2500, 5000, 10000, 18000, 30000, 50000, 80000, 120000]
 
     var storageCap: Int {
         GameState.storageCaps[min(hqLevel - 1, GameState.storageCaps.count - 1)]
     }
 
-    /// Snapshot of placed buildings. Sourced of truth for SwiftUI; the SK scene
-    /// keeps its own `[id: Building]` map for the visual side.
+    // MARK: - World
     var buildings: [BuildingModel] = []
-
-    /// Trained troops (all states: garrisoned, placed, fighting, dead).
     var troops: [TroopModel] = []
-
-    /// Training queues keyed by Training Camp building ID.
+    var enemies: [EnemyModel] = []
     var trainingQueues: [Int: [TrainingQueueItem]] = [:]
 
-    /// Monotonic ID generator. Same pattern as `nextBuildingId` in `Building.js`.
+    // MARK: - Wave / phase
+    var phase: GamePhase = .building
+    var currentWave: Int = 0
+    var waveStreak: Int = 0
+    /// 0=TL, 1=TR, 2=BL, 3=BR — where the current wave spawns from.
+    var waveCorner: Int? = nil
+    var selectedDifficulty: Int = 2
+    var maxDifficultyUnlocked: Int = 1
+
+    /// Transient UI: which troop is selected for moving (during PRE_BATTLE).
+    var selectedTroopId: Int? = nil
+    /// Last wave-complete / wave-failed summary for the result card.
+    var lastWaveReward: WaveReward? = nil
+    var lastWaveFailInfo: (waterStolen: Int, milkStolen: Int)? = nil
+
+    // MARK: - ID mints
     private var nextBuildingId: Int = 1
     func mintBuildingId() -> Int {
         defer { nextBuildingId += 1 }
@@ -49,6 +65,12 @@ final class GameState {
     func mintTroopId() -> Int {
         defer { nextTroopId += 1 }
         return nextTroopId
+    }
+
+    private var nextEnemyId: Int = 1
+    func mintEnemyId() -> Int {
+        defer { nextEnemyId += 1 }
+        return nextEnemyId
     }
 
     // MARK: - Resource arithmetic
@@ -77,8 +99,6 @@ final class GameState {
         return true
     }
 
-    /// Spend `amount` from whichever of water/milk the player has more of,
-    /// unless a specific `preferred` is given. Mirrors JS `spendFlex`.
     @discardableResult
     func spendFlex(_ amount: Int, preferred: ResourceKind? = nil) -> Bool {
         let choice: ResourceKind
@@ -104,8 +124,6 @@ final class GameState {
         EventBus.shared.send(.resourceGained(kind: resource, amount: amount))
     }
 
-    /// Add a fractional amount. Commits whole units to `water`/`milk` when
-    /// the carry crosses ≥ 1. Used by `ResourceSystem` for passive generation.
     func accumulate(_ amount: Double, to resource: ResourceKind) {
         switch resource {
         case .water:
@@ -123,7 +141,6 @@ final class GameState {
                 milk = min(storageCap, milk + whole)
             }
         case .dogCoins:
-            // Dog coins are never fractional in the current design.
             break
         }
     }
@@ -143,15 +160,12 @@ final class GameState {
 
     // MARK: - Fort capacity
 
-    /// Total troop slots across all Forts (post-construction).
     var fortTotalCapacity: Int {
         buildings.filter { $0.type == .fort }
             .map { $0.def.troopCapacity(at: $0.level) }
             .reduce(0, +)
     }
 
-    /// Slots currently used by garrisoned + in-queue troops.
-    /// In-queue troops reserve slots (matches JS `getFortAvailableSlots`).
     var fortUsedSlots: Int {
         let livingSlots = troops
             .filter { $0.state != .dead }
@@ -166,6 +180,18 @@ final class GameState {
 
     var fortAvailableSlots: Int {
         max(0, fortTotalCapacity - fortUsedSlots)
+    }
+
+    // MARK: - HQ
+
+    /// The Dog HQ, if placed.
+    var hq: BuildingModel? { buildings.first(where: { $0.type == .dogHQ }) }
+
+    /// HQ max HP by level — direct port of BuildingConfig `hp` for DOG_HQ.
+    private static let hqMaxHP = [500, 700, 1000, 1400, 2000, 2800, 4000, 5500, 7500, 10000]
+
+    static func hqMaxHP(level: Int) -> Int {
+        hqMaxHP[min(max(level, 1), hqMaxHP.count) - 1]
     }
 }
 
@@ -188,14 +214,16 @@ enum ResourceKind: String, CaseIterable, Hashable {
 }
 
 /// Lightweight model record for a placed building. The visual `Building`
-/// `SKNode` mirrors this — but mutating game-state fields lives here so
-/// SwiftUI bindings update without poking SpriteKit.
+/// `SKNode` mirrors this.
 struct BuildingModel: Identifiable, Hashable {
     let id: Int
     let type: BuildingType
     var col: Int
     var row: Int
     var level: Int
+    /// Only tracked for the HQ right now (drives wave failure).
+    var hp: Int = 0
+    var maxHP: Int = 0
 
     var def: BuildingDef { BuildingConfig.def(for: type) }
 }

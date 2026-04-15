@@ -11,36 +11,46 @@ final class GameCoordinator {
     let buildingSystem: BuildingSystem
     let resourceSystem: ResourceSystem
     let trainingSystem: TrainingSystem
+    let pathfinding: PathfindingSystem
+    let waveSystem: WaveSystem
+    let combatSystem: CombatSystem
 
     /// UI state — drives which panels are visible.
     var placement: PlacementMode? = nil
     var selectedBuildingId: Int? = nil
-    /// When set, the training panel is open for this camp (replaces info panel).
     var trainingPanelCampId: Int? = nil
+    /// 1x, 2x, 4x speed during BATTLE phase (purely visual — scales dt).
+    var battleSpeed: Double = 1.0
 
     init() {
         let state = GameState()
         let grid = Grid()
         self.state = state
         self.grid = grid
-        self.buildingSystem = BuildingSystem(state: state, grid: grid)
-        self.resourceSystem = ResourceSystem(state: state)
-        self.trainingSystem = TrainingSystem(state: state)
+        self.buildingSystem  = BuildingSystem(state: state, grid: grid)
+        self.resourceSystem  = ResourceSystem(state: state)
+        self.trainingSystem  = TrainingSystem(state: state)
+        self.pathfinding     = PathfindingSystem(grid: grid)
+        self.waveSystem      = WaveSystem(state: state)
+        self.combatSystem    = CombatSystem(state: state)
     }
 
     // MARK: - Frame tick
 
-    /// Called every SpriteKit frame. Drives passive systems.
     func tick(dt: Double) {
-        // Clamp egregious deltas (backgrounded → foregrounded).
         let clamped = min(max(dt, 0), 0.25)
         resourceSystem.update(dt: clamped)
         trainingSystem.update(dt: clamped)
+        // Battle ticks are sped up by battleSpeed.
+        let battleDt = clamped * battleSpeed
+        waveSystem.update(dt: battleDt)
+        combatSystem.update(dt: battleDt)
     }
 
     // MARK: - Store / placement flow
 
     func enterPlacement(_ type: BuildingType) {
+        guard state.phase == .building else { return }
         selectedBuildingId = nil
         trainingPanelCampId = nil
         placement = PlacementMode(type: type, candidate: nil)
@@ -56,7 +66,6 @@ final class GameCoordinator {
         placement = pm
     }
 
-    /// Confirm placement using the chosen resource. Returns the new model on success.
     @discardableResult
     func confirmPlacement(payWith resource: ResourceKind) -> BuildingModel? {
         guard let pm = placement, let cand = pm.candidate else { return nil }
@@ -74,7 +83,8 @@ final class GameCoordinator {
     // MARK: - Selection / move / delete / upgrade
 
     func selectBuilding(id: Int) {
-        if placement != nil { return } // ignore selections during placement
+        if placement != nil { return }
+        if state.phase != .building { return }
         selectedBuildingId = id
         trainingPanelCampId = nil
     }
@@ -90,14 +100,15 @@ final class GameCoordinator {
     }
 
     func enterMoveMode() {
-        guard let id = selectedBuildingId,
+        guard state.phase == .building,
+              let id = selectedBuildingId,
               let model = state.buildings.first(where: { $0.id == id }) else { return }
-        // Re-use placement mode with a marker that this is a move-of-existing.
         placement = PlacementMode(type: model.type, candidate: nil, movingId: id)
         selectedBuildingId = nil
     }
 
     func deleteSelected() {
+        guard state.phase == .building else { return }
         guard let id = selectedBuildingId else { return }
         buildingSystem.remove(buildingId: id)
         selectedBuildingId = nil
@@ -105,6 +116,7 @@ final class GameCoordinator {
     }
 
     func upgradeSelected() {
+        guard state.phase == .building else { return }
         guard let id = selectedBuildingId else { return }
         _ = buildingSystem.upgrade(buildingId: id)
     }
@@ -112,7 +124,8 @@ final class GameCoordinator {
     // MARK: - Training
 
     func openTrainingPanel() {
-        guard let id = selectedBuildingId,
+        guard state.phase == .building,
+              let id = selectedBuildingId,
               let model = state.buildings.first(where: { $0.id == id }),
               model.type == .trainingCamp else { return }
         trainingPanelCampId = id
@@ -133,18 +146,79 @@ final class GameCoordinator {
         trainingSystem.cancel(campId: id, index: index)
     }
 
+    // MARK: - Wave controls
+
+    func startPreBattle() { waveSystem.enterPreBattle() }
+    func cancelPreBattle() { waveSystem.cancelPreBattle() }
+    func deployBattle()   { waveSystem.deploy() }
+    func dismissWaveResult() { waveSystem.dismissWaveResult() }
+    func goHome() { waveSystem.goHome() }
+
+    var hasTroops: Bool {
+        state.troops.contains { $0.state != .dead }
+    }
+
+    func setDifficulty(_ level: Int) {
+        guard state.phase == .building else { return }
+        guard level >= 1, level <= state.maxDifficultyUnlocked else { return }
+        state.selectedDifficulty = level
+    }
+
+    func cycleBattleSpeed() {
+        switch battleSpeed {
+        case 1.0: battleSpeed = 2.0
+        case 2.0: battleSpeed = 4.0
+        default:  battleSpeed = 1.0
+        }
+    }
+
+    // MARK: - Taps
+
     func tap(col: Int, row: Int) {
-        // Three modes: placement (select candidate), move (select destination),
-        // or normal (select building under tap if any).
-        if placement != nil {
-            setPlacementCandidate(col: col, row: row)
+        switch state.phase {
+        case .building:
+            if placement != nil {
+                setPlacementCandidate(col: col, row: row)
+                return
+            }
+            if let id = grid.buildingId(at: col, row: row) {
+                selectBuilding(id: id)
+            } else {
+                deselect()
+            }
+        case .preBattle:
+            handlePreBattleTap(col: col, row: row)
+        case .battle, .waveComplete, .waveFailed:
+            break
+        }
+    }
+
+    /// Pre-battle: tap a troop to select, tap a tile to move the selected
+    /// troop there.
+    private func handlePreBattleTap(col: Int, row: Int) {
+        // If tapping a troop, select it.
+        let tappedTroopIdx = state.troops.firstIndex(where: {
+            !$0.isDead && $0.state != .garrisoned &&
+            Int($0.col.rounded()) == col && Int($0.row.rounded()) == row
+        })
+        if let idx = tappedTroopIdx {
+            state.selectedTroopId = state.troops[idx].id
             return
         }
-        if let id = grid.buildingId(at: col, row: row) {
-            selectBuilding(id: id)
-        } else {
-            deselect()
+
+        // Otherwise, if a troop is selected and the target tile is walkable, move it.
+        guard let id = state.selectedTroopId,
+              let tIdx = state.troops.firstIndex(where: { $0.id == id }) else {
+            state.selectedTroopId = nil
+            return
         }
+        // Can't move onto a building.
+        if grid.buildingId(at: col, row: row) != nil { return }
+        state.troops[tIdx].col = Double(col) + 0.5
+        state.troops[tIdx].row = Double(row) + 0.5
+        EventBus.shared.send(.troopMoved(troopId: id,
+                                          col: state.troops[tIdx].col,
+                                          row: state.troops[tIdx].row))
     }
 }
 
@@ -153,6 +227,5 @@ struct TilePos: Hashable { let col: Int; let row: Int }
 struct PlacementMode {
     let type: BuildingType
     var candidate: TilePos?
-    /// If non-nil, this is a relocation of an existing building, not a new placement.
     var movingId: Int?
 }
