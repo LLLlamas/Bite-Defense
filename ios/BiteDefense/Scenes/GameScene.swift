@@ -15,6 +15,8 @@ final class GameScene: SKScene {
     private var buildings: [Int: Building] = [:]
     private var cancellables = Set<AnyCancellable>()
 
+    private var lastUpdateTime: TimeInterval = 0
+
     override func didMove(to view: SKView) {
         backgroundColor = Constants.backgroundColor.skColor
         scaleMode = .resizeFill
@@ -46,8 +48,18 @@ final class GameScene: SKScene {
     }
 
     override func update(_ currentTime: TimeInterval) {
+        // Compute a frame delta. First frame has no baseline, so skip.
+        let dt: Double
+        if lastUpdateTime == 0 {
+            dt = 0
+        } else {
+            dt = currentTime - lastUpdateTime
+        }
+        lastUpdateTime = currentTime
+
+        coordinator?.tick(dt: dt)
+
         // Cheap: rebuild placement preview each frame from coordinator state.
-        // For 30×30 with 1 preview node this is negligible.
         refreshPlacementPreview()
     }
 
@@ -61,12 +73,26 @@ final class GameScene: SKScene {
         case .buildingMoved(let id, let col, let row):
             buildings[id]?.moveTo(col: col, row: row)
         case .buildingRemoved(let id):
-            buildings[id]?.removeFromParent()
+            if let node = buildings[id] {
+                // Short "poof" as the building is removed.
+                node.run(SKAction.sequence([
+                    SKAction.group([
+                        SKAction.scale(to: 0.01, duration: 0.18),
+                        SKAction.fadeOut(withDuration: 0.18)
+                    ]),
+                    SKAction.removeFromParent()
+                ]))
+            }
             buildings.removeValue(forKey: id)
         case .buildingUpgraded(let id, let newLevel):
             buildings[id]?.setLevel(newLevel)
+            buildings[id]?.playUpgradeFlash()
         case .cameraMoved:
             refreshDebugLabel()
+        case .resourceGained, .resourceSpent,
+             .trainingQueued, .trainingCancelled,
+             .trainingBlockedNoFort, .troopTrained, .playerLeveledUp:
+            break
         }
         refreshSelection()
     }
@@ -76,6 +102,7 @@ final class GameScene: SKScene {
         let node = Building(model: model, view: view)
         addChild(node)
         buildings[model.id] = node
+        node.playPlaceAnimation()
     }
 
     private func refreshSelection() {
@@ -133,7 +160,7 @@ final class GameScene: SKScene {
         label.verticalAlignmentMode = .top
         label.position = CGPoint(x: -size.width / 2 + 12, y: size.height / 2 - 12)
         label.zPosition = 1000
-        label.text = "M4 — placement"
+        label.text = "M6 — resources + training"
         return label
     }
 

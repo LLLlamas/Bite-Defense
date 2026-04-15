@@ -1,18 +1,22 @@
 import Foundation
 import Observation
 
-/// Top-level orchestrator. Owns model state, the grid, and the building system.
+/// Top-level orchestrator. Owns model state, the grid, and all systems.
 /// SwiftUI views read it for HUD + panels; the `GameScene` calls into it for
-/// tile taps. Single instance lives in `ContentView`.
+/// tile taps and drives the per-frame `tick(dt:)`.
 @Observable
 final class GameCoordinator {
     let state: GameState
     let grid: Grid
     let buildingSystem: BuildingSystem
+    let resourceSystem: ResourceSystem
+    let trainingSystem: TrainingSystem
 
     /// UI state — drives which panels are visible.
     var placement: PlacementMode? = nil
     var selectedBuildingId: Int? = nil
+    /// When set, the training panel is open for this camp (replaces info panel).
+    var trainingPanelCampId: Int? = nil
 
     init() {
         let state = GameState()
@@ -20,12 +24,25 @@ final class GameCoordinator {
         self.state = state
         self.grid = grid
         self.buildingSystem = BuildingSystem(state: state, grid: grid)
+        self.resourceSystem = ResourceSystem(state: state)
+        self.trainingSystem = TrainingSystem(state: state)
+    }
+
+    // MARK: - Frame tick
+
+    /// Called every SpriteKit frame. Drives passive systems.
+    func tick(dt: Double) {
+        // Clamp egregious deltas (backgrounded → foregrounded).
+        let clamped = min(max(dt, 0), 0.25)
+        resourceSystem.update(dt: clamped)
+        trainingSystem.update(dt: clamped)
     }
 
     // MARK: - Store / placement flow
 
     func enterPlacement(_ type: BuildingType) {
         selectedBuildingId = nil
+        trainingPanelCampId = nil
         placement = PlacementMode(type: type, candidate: nil)
     }
 
@@ -59,9 +76,13 @@ final class GameCoordinator {
     func selectBuilding(id: Int) {
         if placement != nil { return } // ignore selections during placement
         selectedBuildingId = id
+        trainingPanelCampId = nil
     }
 
-    func deselect() { selectedBuildingId = nil }
+    func deselect() {
+        selectedBuildingId = nil
+        trainingPanelCampId = nil
+    }
 
     var selectedBuilding: BuildingModel? {
         guard let id = selectedBuildingId else { return nil }
@@ -80,11 +101,36 @@ final class GameCoordinator {
         guard let id = selectedBuildingId else { return }
         buildingSystem.remove(buildingId: id)
         selectedBuildingId = nil
+        if trainingPanelCampId == id { trainingPanelCampId = nil }
     }
 
     func upgradeSelected() {
         guard let id = selectedBuildingId else { return }
         _ = buildingSystem.upgrade(buildingId: id)
+    }
+
+    // MARK: - Training
+
+    func openTrainingPanel() {
+        guard let id = selectedBuildingId,
+              let model = state.buildings.first(where: { $0.id == id }),
+              model.type == .trainingCamp else { return }
+        trainingPanelCampId = id
+    }
+
+    func closeTrainingPanel() {
+        trainingPanelCampId = nil
+    }
+
+    @discardableResult
+    func queueTroop(_ type: TroopType) -> TrainingSystem.QueueResult {
+        guard let id = trainingPanelCampId else { return .invalidCamp }
+        return trainingSystem.queue(campId: id, troopType: type)
+    }
+
+    func cancelTrainingQueueItem(index: Int) {
+        guard let id = trainingPanelCampId else { return }
+        trainingSystem.cancel(campId: id, index: index)
     }
 
     func tap(col: Int, row: Int) {

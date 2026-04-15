@@ -71,6 +71,33 @@ final class Building: SKNode {
         levelBadge = fresh
     }
 
+    /// Quick scale-from-zero on placement.
+    func playPlaceAnimation() {
+        setScale(0.01)
+        alpha = 0
+        let pop = SKAction.group([
+            SKAction.scale(to: 1.0, duration: 0.22),
+            SKAction.fadeIn(withDuration: 0.18)
+        ])
+        pop.timingMode = .easeOut
+        run(pop)
+    }
+
+    /// Brief green flash to signal an upgrade.
+    func playUpgradeFlash() {
+        let flash = SKShapeNode(rectOf: bodySprite.size)
+        flash.position = CGPoint(x: bodySprite.size.width / 2,
+                                 y: -bodySprite.size.height / 2)
+        flash.fillColor = SKColor(red: 0.6, green: 1.0, blue: 0.5, alpha: 0.65)
+        flash.strokeColor = .clear
+        flash.zPosition = 15
+        addChild(flash)
+        flash.run(SKAction.sequence([
+            SKAction.fadeOut(withDuration: 0.35),
+            SKAction.removeFromParent()
+        ]))
+    }
+
     func setSelected(_ selected: Bool) {
         if selected {
             let def = BuildingConfig.def(for: type)

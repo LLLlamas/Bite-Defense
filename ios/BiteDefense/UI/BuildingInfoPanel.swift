@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Appears when an existing building is selected. Shows level + footprint and
-/// exposes Move / Upgrade / Delete actions.
+/// exposes Move / Upgrade / Delete (and Train for Training Camps).
 struct BuildingInfoPanel: View {
     @Bindable var coordinator: GameCoordinator
 
@@ -26,11 +26,18 @@ struct BuildingInfoPanel: View {
                     .font(.caption.monospacedDigit().bold())
                     .foregroundStyle(.yellow)
             }
-            Text("(\(model.col),\(model.row)) · \(def.tileWidth)×\(def.tileHeight)")
-                .font(.caption.monospaced())
-                .foregroundStyle(.white.opacity(0.7))
+
+            // Context row — varies by building type.
+            contextLine(for: model)
 
             HStack(spacing: 10) {
+                if model.type == .trainingCamp {
+                    Button { coordinator.openTrainingPanel() } label: {
+                        Label("Train", systemImage: "figure.walk")
+                    }
+                    .buttonStyle(.borderedProminent).tint(.orange)
+                }
+
                 Button { coordinator.enterMoveMode() } label: {
                     Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
                 }
@@ -46,7 +53,7 @@ struct BuildingInfoPanel: View {
                 Button(role: .destructive) {
                     coordinator.deleteSelected()
                 } label: {
-                    Label("Delete", systemImage: "trash")
+                    Label("", systemImage: "trash")
                 }
                 .buttonStyle(.bordered)
 
@@ -60,6 +67,42 @@ struct BuildingInfoPanel: View {
         .padding(12)
         .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
         .padding(.horizontal, 12)
+    }
+
+    @ViewBuilder
+    private func contextLine(for model: BuildingModel) -> some View {
+        let def = model.def
+        VStack(alignment: .leading, spacing: 3) {
+            Text("(\(model.col),\(model.row)) · \(def.tileWidth)×\(def.tileHeight)")
+                .font(.caption.monospaced())
+                .foregroundStyle(.white.opacity(0.7))
+
+            if let kind = def.generatesResource {
+                let rate = def.generationRate(at: model.level)
+                Text("\(kind.emoji) \(rate) / min")
+                    .font(.caption.monospacedDigit().bold())
+                    .foregroundStyle(.cyan)
+            }
+
+            if model.type == .fort {
+                let cap = def.troopCapacity(at: model.level)
+                let housed = coordinator.state.troops
+                    .filter { $0.fortId == model.id && $0.state != .dead }
+                    .map { $0.fortSlotsUsed }
+                    .reduce(0, +)
+                Text("🏠 \(housed) / \(cap) slots")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.green.opacity(0.9))
+            }
+
+            if model.type == .trainingCamp {
+                let queue = coordinator.state.trainingQueues[model.id]?.count ?? 0
+                let cap = def.queueSize(at: model.level)
+                Text("Queue \(queue) / \(cap)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.orange.opacity(0.9))
+            }
+        }
     }
 
     private func upgradeText(for model: BuildingModel) -> (label: String, canAfford: Bool) {

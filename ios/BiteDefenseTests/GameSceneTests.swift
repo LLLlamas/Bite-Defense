@@ -8,7 +8,6 @@ final class GameSceneTests: XCTestCase {
     }
 
     func testTileDimensionsArePositive() {
-        XCTAssertGreaterThan(Constants.tileWidth, 0)
-        XCTAssertGreaterThan(Constants.tileHeight, 0)
+        XCTAssertGreaterThan(Constants.tileSize, 0)
     }
 }
