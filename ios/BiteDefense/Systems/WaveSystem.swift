@@ -90,7 +90,7 @@ final class WaveSystem {
 
     private func startWave() {
         state.currentWave += 1
-        let seed = UInt64(state.currentWave &* 1103515245 &+ UInt64(bitPattern: Int64(state.selectedDifficulty * 31)))
+        let seed: UInt64 = UInt64(max(1, state.currentWave)) &* 1103515245 &+ UInt64(max(0, state.selectedDifficulty) * 31)
         var rng = SplitMix64(seed: seed)
         let data = WaveConfig.generate(waveNumber: state.currentWave,
                                         difficulty: state.selectedDifficulty,
