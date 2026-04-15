@@ -34,7 +34,11 @@ final class Building: SKNode {
         self.bodySprite = sprite
 
         let iconSize = max(14, floor(min(size.width, size.height) * 0.55))
-        let label = SKLabelNode(text: def.emoji)
+        // Force emoji presentation (VS16) so glyphs like ⚔️ / 🛡️ always
+        // render in color even on monochrome-text fallback fonts.
+        let emojiText = def.emoji.hasSuffix("\u{FE0F}")
+            ? def.emoji : def.emoji + "\u{FE0F}"
+        let label = SKLabelNode(text: emojiText)
         label.fontName = "AppleColorEmoji"
         label.fontSize = iconSize
         label.horizontalAlignmentMode = .center

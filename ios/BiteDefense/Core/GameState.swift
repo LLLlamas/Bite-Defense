@@ -152,7 +152,7 @@ final class GameState {
 
     // MARK: - XP / leveling
 
-    private static let xpPerLevel = [0, 50, 150, 400, 900, 2000, 4500, 9000, 17000, 32000, 60000]
+    static let xpPerLevel = [0, 50, 150, 400, 900, 2000, 4500, 9000, 17000, 32000, 60000]
 
     func addXP(_ amount: Int) {
         playerXP += amount
@@ -161,6 +161,14 @@ final class GameState {
             playerLevel += 1
             EventBus.shared.send(.playerLeveledUp(newLevel: playerLevel))
         }
+    }
+
+    /// XP threshold needed to reach the next level (for HUD display).
+    var xpForNextLevel: Int {
+        if playerLevel >= Self.xpPerLevel.count {
+            return Self.xpPerLevel.last ?? 0
+        }
+        return Self.xpPerLevel[playerLevel]
     }
 
     // MARK: - Fort capacity

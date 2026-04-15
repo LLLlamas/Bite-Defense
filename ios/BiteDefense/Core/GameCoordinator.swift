@@ -218,6 +218,12 @@ final class GameCoordinator {
             return
         }
         waveSystem.enterPreBattle()
+        // Auto-select the first deployed troop so the player can immediately
+        // tap a tile to propose a move (no "mystery first tap" friction).
+        state.selectedTroopId = state.troops.first(where: {
+            !$0.isDead && $0.state != .garrisoned
+        })?.id
+        pendingTroopMove = nil
     }
 
     /// Legacy callable used by some panels — same as `requestStartWave` now.
@@ -272,18 +278,30 @@ final class GameCoordinator {
     /// (shows a ghost preview + Confirm/Cancel in the bar). Requires an
     /// explicit confirmation to actually move — prevents accidental taps.
     private func handlePreBattleTap(col: Int, row: Int) {
-        // Re-tap a troop → re-select it and clear any pending target.
-        let tappedTroopIdx = state.troops.firstIndex(where: {
-            !$0.isDead && $0.state != .garrisoned &&
-            Int($0.col.rounded()) == col && Int($0.row.rounded()) == row
-        })
-        if let idx = tappedTroopIdx {
-            state.selectedTroopId = state.troops[idx].id
+        // Lenient troop pick — nearest deployed troop within ~1.2 tiles of the
+        // tap. Jittered deploy positions make exact-tile matching frustrating.
+        let tapCx = Double(col) + 0.5
+        let tapCy = Double(row) + 0.5
+        let deployed = state.troops.enumerated().filter { _, t in
+            !t.isDead && t.state != .garrisoned
+        }
+        let nearest = deployed.min { a, b in
+            hypot(a.element.col - tapCx, a.element.row - tapCy) <
+            hypot(b.element.col - tapCx, b.element.row - tapCy)
+        }
+        if let hit = nearest,
+           hypot(hit.element.col - tapCx, hit.element.row - tapCy) <= 1.2 {
+            state.selectedTroopId = hit.element.id
             pendingTroopMove = nil
             return
         }
 
-        // Need a selected troop to propose a target.
+        // No troop near the tap → propose a move target. If nothing is
+        // selected yet, auto-select the first deployed troop so the very
+        // first tap is still productive (instead of silently no-op'ing).
+        if state.selectedTroopId == nil {
+            state.selectedTroopId = deployed.first?.element.id
+        }
         guard state.selectedTroopId != nil else {
             pendingTroopMove = nil
             return
@@ -293,16 +311,17 @@ final class GameCoordinator {
         pendingTroopMove = TilePos(col: col, row: row)
     }
 
-    /// Commit the pending troop move (if any). After confirming, both the
-    /// pending target *and* the selected troop are cleared so the next tap
-    /// on a different troop selects it cleanly — fixes the "selector stuck
-    /// on the first dog" bug reported during testing.
+    /// Commit the pending troop move (if any). After confirming we keep the
+    /// selection so the user can immediately tap another tile to reposition
+    /// further, or tap a different dog to switch. Tapping a different dog
+    /// replaces the selection cleanly — this avoids the "selector stuck on
+    /// the first dog" bug and the "taps do nothing" bug when selection was
+    /// cleared too eagerly.
     func confirmPendingMove() {
         guard let target = pendingTroopMove,
               let id = state.selectedTroopId,
               let tIdx = state.troops.firstIndex(where: { $0.id == id }) else {
             pendingTroopMove = nil
-            state.selectedTroopId = nil
             return
         }
         state.troops[tIdx].col = Double(target.col) + 0.5
@@ -311,7 +330,6 @@ final class GameCoordinator {
                                           col: state.troops[tIdx].col,
                                           row: state.troops[tIdx].row))
         pendingTroopMove = nil
-        state.selectedTroopId = nil
     }
 
     func cancelPendingMove() { pendingTroopMove = nil }

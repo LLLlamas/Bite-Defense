@@ -5,80 +5,144 @@ struct HUDView: View {
     @Bindable var coordinator: GameCoordinator
 
     var body: some View {
-        HStack(spacing: 8) {
-            cappedChip(.water, value: coordinator.state.water,
-                       cap: coordinator.state.storageCap)
-            cappedChip(.milk, value: coordinator.state.milk,
-                       cap: coordinator.state.storageCap)
-            coinChip(value: coordinator.state.dogCoins)
-            bonesChip(value: coordinator.state.premiumBones,
-                      admin: coordinator.state.adminMode)
-            Spacer()
-            levelChip(level: coordinator.state.playerLevel,
-                      xp: coordinator.state.playerXP)
+        // Match the JS HUD layout: circular icon + two-line (VALUE / LABEL)
+        // text, all chips grouped into one rounded container on the left,
+        // and a level/XP block on the right. Rounded font design gives the
+        // friendly look from the reference.
+        HStack(alignment: .center, spacing: 10) {
+            resourceGroup
+            Spacer(minLength: 8)
+            levelBlock
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)
     }
 
-    private func cappedChip(_ kind: ResourceKind, value: Int, cap: Int) -> some View {
+    private var resourceGroup: some View {
+        HStack(spacing: 14) {
+            cappedChip(.water, label: "WATER",
+                       value: coordinator.state.water,
+                       cap: coordinator.state.storageCap)
+            cappedChip(.milk, label: "MILK",
+                       value: coordinator.state.milk,
+                       cap: coordinator.state.storageCap)
+            flatChip(emoji: "🪙", label: "DOG COINS",
+                     value: "\(coordinator.state.dogCoins)",
+                     iconBg: .yellow.opacity(0.25))
+            flatChip(emoji: "🦴", label: "PREMIUM BONES",
+                     value: coordinator.state.adminMode
+                            ? "∞" : "\(coordinator.state.premiumBones)",
+                     iconBg: .purple.opacity(0.35))
+        }
+        .padding(.horizontal, 12).padding(.vertical, 6)
+        .background(panelBackground)
+    }
+
+    private var levelBlock: some View {
+        let level = coordinator.state.playerLevel
+        let xp = coordinator.state.playerXP
+        let nextXP = coordinator.state.xpForNextLevel
+        let frac = nextXP > 0 ? min(1.0, Double(xp) / Double(nextXP)) : 0
+
+        return HStack(spacing: 10) {
+            Text("Level \(level)")
+                .font(.system(size: 14, design: .rounded).weight(.heavy))
+                .foregroundStyle(.white)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color.white.opacity(0.18))
+                            Capsule().fill(
+                                LinearGradient(colors: [.orange, .yellow],
+                                               startPoint: .leading,
+                                               endPoint: .trailing)
+                            )
+                            .frame(width: max(2, geo.size.width * frac))
+                        }
+                    }
+                    .frame(width: 90, height: 8)
+                    Text("\(xp)/\(nextXP)")
+                        .font(.system(size: 10, design: .rounded)
+                                .weight(.bold).monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.9))
+                }
+                Text("XP BONES")
+                    .font(.system(size: 8, design: .rounded).weight(.heavy))
+                    .tracking(0.5)
+                    .foregroundStyle(.white.opacity(0.55))
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 6)
+        .background(panelBackground)
+    }
+
+    private var panelBackground: some View {
+        RoundedRectangle(cornerRadius: 14)
+            .fill(Color.black.opacity(0.55))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.orange.opacity(0.55), lineWidth: 1.5)
+            )
+    }
+
+    private func cappedChip(_ kind: ResourceKind, label: String,
+                            value: Int, cap: Int) -> some View {
         let frac = cap > 0 ? min(1.0, Double(value) / Double(cap)) : 0
         let full = value >= cap
 
-        return VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 4) {
-                Text(kind.emoji).font(.body)
-                Text("\(value)")
-                    .font(.caption.monospacedDigit().bold())
-                    .foregroundStyle(full ? .yellow : .white)
-                Text("/ \(compact(cap))")
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.6))
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.white.opacity(0.15))
-                    Capsule().fill(barColor(kind))
-                        .frame(width: max(2, geo.size.width * frac))
+        return HStack(spacing: 6) {
+            iconBadge(emoji: kind.emoji, bg: barColor(kind).opacity(0.35))
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 3) {
+                    Text("\(value)")
+                        .font(.system(size: 13, design: .rounded)
+                                .weight(.heavy).monospacedDigit())
+                        .foregroundStyle(full ? .yellow : .white)
+                    Text("/ \(compact(cap))")
+                        .font(.system(size: 11, design: .rounded)
+                                .weight(.semibold).monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.65))
                 }
+                Text(label)
+                    .font(.system(size: 8, design: .rounded).weight(.heavy))
+                    .tracking(0.5)
+                    .foregroundStyle(.white.opacity(0.55))
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.white.opacity(0.12))
+                        Capsule().fill(barColor(kind))
+                            .frame(width: max(2, geo.size.width * frac))
+                    }
+                }
+                .frame(width: 60, height: 2)
             }
-            .frame(height: 3)
         }
-        .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 10))
     }
 
-    private func coinChip(value: Int) -> some View {
-        HStack(spacing: 4) {
-            Text(ResourceKind.dogCoins.emoji)
-            Text("\(value)")
-                .font(.caption.monospacedDigit().bold())
-                .foregroundStyle(.white)
+    private func flatChip(emoji: String, label: String, value: String,
+                          iconBg: Color) -> some View {
+        HStack(spacing: 6) {
+            iconBadge(emoji: emoji, bg: iconBg)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value)
+                    .font(.system(size: 13, design: .rounded)
+                            .weight(.heavy).monospacedDigit())
+                    .foregroundStyle(.white)
+                Text(label)
+                    .font(.system(size: 8, design: .rounded).weight(.heavy))
+                    .tracking(0.5)
+                    .foregroundStyle(.white.opacity(0.55))
+            }
         }
-        .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(.black.opacity(0.55), in: Capsule())
     }
 
-    private func bonesChip(value: Int, admin: Bool) -> some View {
-        HStack(spacing: 4) {
-            Text("🦴")
-            Text(admin ? "∞" : "\(value)")
-                .font(.caption.monospacedDigit().bold())
-                .foregroundStyle(.white)
-        }
-        .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(.purple.opacity(0.45), in: Capsule())
-    }
-
-    private func levelChip(level: Int, xp: Int) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: "star.fill").foregroundStyle(.yellow)
-            Text("Lv \(level)")
-                .font(.caption.monospacedDigit().bold())
-                .foregroundStyle(.white)
-        }
-        .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(.black.opacity(0.55), in: Capsule())
+    private func iconBadge(emoji: String, bg: Color) -> some View {
+        Text(emoji)
+            .font(.system(size: 14))
+            .frame(width: 26, height: 26)
+            .background(Circle().fill(bg))
+            .overlay(Circle().stroke(.white.opacity(0.25), lineWidth: 1))
     }
 
     private func barColor(_ kind: ResourceKind) -> Color {

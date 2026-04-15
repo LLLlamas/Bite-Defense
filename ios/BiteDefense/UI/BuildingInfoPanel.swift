@@ -101,39 +101,45 @@ struct BuildingInfoPanel: View {
                     .font(.caption2)
                     .foregroundStyle(.white.opacity(0.5))
             } else {
-                // Group by (type, level) for a compact tally.
-                let groups = Dictionary(grouping: troops,
-                                        by: { TroopKey(type: $0.type, level: $0.level) })
+                // Each troop gets its own small card — easier to read than a
+                // roll-up tally, and makes per-troop slot usage obvious.
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        ForEach(Array(groups.keys).sorted(), id: \.self) { key in
-                            troopChip(key: key, count: groups[key]?.count ?? 0)
+                        ForEach(troops, id: \.id) { troop in
+                            troopCard(troop)
                         }
                     }
+                    .padding(.vertical, 2)
                 }
             }
         }
     }
 
-    private func troopChip(key: TroopKey, count: Int) -> some View {
-        let def = TroopConfig.def(for: key.type)
-        // Each troop uses slots equal to its level.
-        let slotsEach = key.level
-        let slotsTotal = slotsEach * count
-        return HStack(spacing: 4) {
-            Text(def.emoji).font(.callout)
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Lv\(key.level) \(def.displayName) ×\(count)")
-                    .font(.system(size: 10, design: .monospaced).bold())
-                    .foregroundStyle(.white)
-                Text("\(slotsEach) slot\(slotsEach == 1 ? "" : "s") each = \(slotsTotal)")
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(.yellow.opacity(0.9))
-            }
+    private func troopCard(_ troop: TroopModel) -> some View {
+        let def = TroopConfig.def(for: troop.type)
+        let slots = troop.fortSlotsUsed
+        return VStack(spacing: 2) {
+            Text(def.emoji).font(.title3)
+            Text("Lv\(troop.level)")
+                .font(.system(size: 10, design: .rounded).weight(.heavy))
+                .foregroundStyle(.yellow)
+            Text(def.displayName)
+                .font(.system(size: 9, design: .rounded).weight(.semibold))
+                .foregroundStyle(.white)
+            Text("\(slots) slot\(slots == 1 ? "" : "s")")
+                .font(.system(size: 8, design: .rounded))
+                .foregroundStyle(.white.opacity(0.7))
         }
-        .padding(.horizontal, 7).padding(.vertical, 3)
-        .background(Color.white.opacity(0.1),
-                    in: RoundedRectangle(cornerRadius: 7))
+        .frame(width: 54)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.white.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.22), lineWidth: 1)
+        )
     }
 
     // MARK: - Actions
@@ -235,12 +241,3 @@ struct BuildingInfoPanel: View {
     }
 }
 
-/// Key used to tally troops in a Fort by (type, level).
-private struct TroopKey: Hashable, Comparable {
-    let type: TroopType
-    let level: Int
-    static func < (lhs: Self, rhs: Self) -> Bool {
-        if lhs.type != rhs.type { return lhs.type.rawValue < rhs.type.rawValue }
-        return lhs.level < rhs.level
-    }
-}
