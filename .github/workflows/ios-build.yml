@@ -15,7 +15,7 @@ on:
 jobs:
   build:
     name: Build & Test (Simulator)
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 30
     defaults:
       run:
@@ -24,10 +24,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select latest stable Xcode
+      - name: Select Xcode 16
+        # XcodeGen emits objectVersion 77 (Xcode 16 format); match it here.
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: '16.2'
 
       - name: Show Xcode + Swift versions
         run: |
@@ -49,7 +50,7 @@ jobs:
             -project BiteDefense.xcodeproj \
             -scheme BiteDefense \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -62,7 +63,7 @@ jobs:
             -project BiteDefense.xcodeproj \
             -scheme BiteDefense \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -70,7 +71,7 @@ jobs:
 
       - name: Boot simulator + capture screenshot
         run: |
-          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 15 (" | head -1 | grep -oE '\([0-9A-F-]{36}\)' | tr -d '()')
+          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16 (" | head -1 | grep -oE '\([0-9A-F-]{36}\)' | tr -d '()')
           echo "Device: $DEVICE_ID"
           xcrun simctl boot "$DEVICE_ID" || true
           xcrun simctl install "$DEVICE_ID" "$(xcodebuild -project BiteDefense.xcodeproj -scheme BiteDefense -configuration Debug -showBuildSettings -destination 'platform=iOS Simulator,name=iPhone 15' | grep -m1 'BUILT_PRODUCTS_DIR' | cut -d'=' -f2 | xargs)/BiteDefense.app"

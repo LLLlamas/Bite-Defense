@@ -19,7 +19,7 @@ concurrency:
 jobs:
   testflight:
     name: Build & Upload to TestFlight
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 60
     defaults:
       run:
@@ -28,13 +28,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select latest stable Xcode
-        # XcodeGen now emits objectVersion 77 (Xcode 16 format), so we need
-        # a matching Xcode. `latest-stable` tracks whatever's current on the
-        # GHA runner image.
+      - name: Select Xcode 16
+        # XcodeGen emits objectVersion 77 (Xcode 16 project format), so we
+        # need Xcode 16.x. macos-15 runners ship it; macos-14 tops out at
+        # Xcode 15.4 and would fail with "future Xcode project file format".
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: '16.2'
 
       - uses: ruby/setup-ruby@v1
         with:
