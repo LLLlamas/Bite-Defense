@@ -15,6 +15,7 @@ final class BuildingSystem {
         case success(BuildingModel)
         case lockedByLevel
         case duplicateUnique
+        case capReached
         case occupied
         case insufficientResource
     }
@@ -31,6 +32,12 @@ final class BuildingSystem {
         if state.playerLevel < def.unlockLevel { return .lockedByLevel }
         if def.unique, state.buildings.contains(where: { $0.type == type && $0.id != ignoringId }) {
             return .duplicateUnique
+        }
+        if def.cappedByHQLevel {
+            let existing = state.buildings.filter { $0.type == type && $0.id != ignoringId }.count
+            if existing >= max(1, state.hqLevel) {
+                return .capReached
+            }
         }
         if !grid.isAreaFree(col: col, row: row,
                             width: def.tileWidth, height: def.tileHeight,

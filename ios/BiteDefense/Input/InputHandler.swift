@@ -59,6 +59,7 @@ final class InputHandler: NSObject, UIGestureRecognizerDelegate {
             let scale = camera.xScale
             camera.position.x -= delta.x * scale
             camera.position.y += delta.y * scale
+            clampCameraToMap()
             emitMoved()
         default:
             lastPanTranslation = .zero
@@ -75,9 +76,48 @@ final class InputHandler: NSObject, UIGestureRecognizerDelegate {
             let target = pinchStartScale / gr.scale
             let clamped = max(1 / Constants.maxZoom, min(1 / Constants.minZoom, target))
             camera.setScale(clamped)
+            clampCameraToMap()
             emitMoved()
         default:
             break
+        }
+    }
+
+    /// Keep the camera looking at the playfield — no more than a half-screen of
+    /// margin past the map edge, so the user never sees a huge blue border.
+    /// When the map is smaller than the visible area at the current zoom, we
+    /// lock the camera to the map center instead of letting the tiny map slide.
+    private func clampCameraToMap() {
+        guard let camera, let view else { return }
+        let tileSize = Constants.tileSize
+        let mapW = CGFloat(Constants.gridCols) * tileSize
+        let mapH = CGFloat(Constants.gridRows) * tileSize
+        // World coordinates: map spans x ∈ [0, mapW], y ∈ [-mapH, 0].
+        let center = IsoMath.gridCenter()
+        let scale = camera.xScale
+        let viewW = view.bounds.width * scale
+        let viewH = view.bounds.height * scale
+        // Allowed pan range so the map edge doesn't leave more than ~20% of
+        // the view as empty background.
+        let slackX = viewW * 0.2
+        let slackY = viewH * 0.2
+
+        let minX = mapW / 2 - (mapW / 2 + slackX) + viewW / 2 - slackX
+        let maxX = mapW / 2 + (mapW / 2 + slackX) - viewW / 2 + slackX
+        if viewW >= mapW + 2 * slackX {
+            camera.position.x = center.x
+        } else {
+            camera.position.x = min(max(camera.position.x, minX), maxX)
+        }
+
+        let midY = center.y
+        if viewH >= mapH + 2 * slackY {
+            camera.position.y = midY
+        } else {
+            let halfMapPlus = mapH / 2 + slackY
+            let topY = midY + halfMapPlus - viewH / 2
+            let botY = midY - halfMapPlus + viewH / 2
+            camera.position.y = min(max(camera.position.y, botY), topY)
         }
     }
 

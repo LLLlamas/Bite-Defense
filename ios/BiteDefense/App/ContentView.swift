@@ -83,19 +83,13 @@ struct ContentView: View {
     private var bottomStrip: some View {
         switch coordinator.state.phase {
         case .building:
-            // When a placement / selection / training panel is up, the store is
-            // in the way — hide the bottom wave bar. Store is toggleable via
-            // the 🛒 button when the player wants to browse.
-            if coordinator.placement != nil ||
-               coordinator.selectedBuildingId != nil ||
-               coordinator.trainingPanelCampId != nil {
+            // BottomPanel is always the main building-phase toolbar. The Store
+            // strip appears only when the player explicitly toggles the 🛒
+            // button — never implicitly when a building card is open.
+            BottomPanel(coordinator: coordinator)
+            if coordinator.storeOpen {
                 StorePanel(coordinator: coordinator)
-            } else {
-                BottomPanel(coordinator: coordinator)
-                if coordinator.storeOpen {
-                    StorePanel(coordinator: coordinator)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         case .preBattle:
             PreBattleBar(coordinator: coordinator)

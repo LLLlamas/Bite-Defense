@@ -24,6 +24,9 @@ struct BuildingDef {
     let borderColor: SKColorRGB
     let maxLevel: Int
     let unique: Bool
+    /// When true, the maximum number of instances equals the current HQ level
+    /// (1 at HQ L1, 2 at HQ L2, …). Used for Fort / Water Well / Milk Farm.
+    let cappedByHQLevel: Bool
     let unlockLevel: Int
     /// Cost amounts indexed by upgrade step. Each amount is paid in **either**
     /// water or milk (player picks at the confirm tray).
@@ -96,7 +99,7 @@ enum BuildingConfig {
             tileWidth: 3, tileHeight: 2, emoji: "🏛️",
             fillColor:   SKColorRGB(r: 0xc9, g: 0x8a, b: 0x4c),
             borderColor: SKColorRGB(r: 0x7a, g: 0x4a, b: 0x1e),
-            maxLevel: 10, unique: true, unlockLevel: 1,
+            maxLevel: 10, unique: true, cappedByHQLevel: false, unlockLevel: 1,
             costs:     [0, 200, 500, 1200, 3000, 6000, 12000, 25000, 50000, 90000],
             buildTime: [0, 30,  60,  120,  300,  600,  1200,  2400,  4800,  9600],
             upgradeUsesCoins: false, upgradeCoinCost: nil,
@@ -109,7 +112,7 @@ enum BuildingConfig {
             tileWidth: 2, tileHeight: 2, emoji: "⚔️",
             fillColor:   SKColorRGB(r: 0x6a, g: 0x8e, b: 0x3a),
             borderColor: SKColorRGB(r: 0x40, g: 0x56, b: 0x1e),
-            maxLevel: 5, unique: false, unlockLevel: 1,
+            maxLevel: 5, unique: true, cappedByHQLevel: false, unlockLevel: 1,
             costs:     [100, 250, 600, 1500, 3500],
             buildTime: [30,  60,  120, 300,  600],
             upgradeUsesCoins: true,
@@ -124,7 +127,7 @@ enum BuildingConfig {
             tileWidth: 2, tileHeight: 2, emoji: "🛡️",
             fillColor:   SKColorRGB(r: 0x8a, g: 0x78, b: 0x56),
             borderColor: SKColorRGB(r: 0x4a, g: 0x3e, b: 0x2a),
-            maxLevel: 5, unique: false, unlockLevel: 1,
+            maxLevel: 5, unique: false, cappedByHQLevel: true, unlockLevel: 1,
             costs:     [150, 400, 900, 2000, 4500],
             buildTime: [40,  80,  160, 320,  640],
             upgradeUsesCoins: true,
@@ -139,7 +142,7 @@ enum BuildingConfig {
             tileWidth: 1, tileHeight: 1, emoji: "🧱",
             fillColor:   SKColorRGB(r: 0x9a, g: 0x9a, b: 0x9a),
             borderColor: SKColorRGB(r: 0x55, g: 0x55, b: 0x55),
-            maxLevel: 5, unique: false, unlockLevel: 1,
+            maxLevel: 5, unique: false, cappedByHQLevel: false, unlockLevel: 1,
             costs:     [10, 30, 80, 200, 500],
             buildTime: [5,  10, 20, 40,  80],
             upgradeUsesCoins: false, upgradeCoinCost: nil,
@@ -152,7 +155,7 @@ enum BuildingConfig {
             tileWidth: 2, tileHeight: 1, emoji: "💧",
             fillColor:   SKColorRGB(r: 0x4f, g: 0x8f, b: 0xc8),
             borderColor: SKColorRGB(r: 0x23, g: 0x4e, b: 0x70),
-            maxLevel: 5, unique: false, unlockLevel: 1,
+            maxLevel: 5, unique: false, cappedByHQLevel: true, unlockLevel: 1,
             costs:     [50, 150, 400, 1000, 2500],
             buildTime: [20, 40,  80,  160,  320],
             upgradeUsesCoins: true,
@@ -167,7 +170,7 @@ enum BuildingConfig {
             tileWidth: 2, tileHeight: 1, emoji: "🥛",
             fillColor:   SKColorRGB(r: 0xf0, g: 0xe0, b: 0xb0),
             borderColor: SKColorRGB(r: 0x9a, g: 0x7e, b: 0x4a),
-            maxLevel: 5, unique: false, unlockLevel: 1,
+            maxLevel: 5, unique: false, cappedByHQLevel: true, unlockLevel: 1,
             costs:     [60, 180, 480, 1200, 3000],
             buildTime: [25, 50,  100, 200,  400],
             upgradeUsesCoins: true,
@@ -182,7 +185,7 @@ enum BuildingConfig {
             tileWidth: 1, tileHeight: 2, emoji: "🏹",
             fillColor:   SKColorRGB(r: 0xc4, g: 0x93, b: 0x3a),
             borderColor: SKColorRGB(r: 0x6b, g: 0x4f, b: 0x10),
-            maxLevel: 5, unique: false, unlockLevel: 3,
+            maxLevel: 5, unique: false, cappedByHQLevel: false, unlockLevel: 3,
             costs:     [75, 200, 500, 1200, 3000],
             buildTime: [25, 50,  100, 200,  400],
             upgradeUsesCoins: false, upgradeCoinCost: nil,

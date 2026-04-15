@@ -185,6 +185,7 @@ struct PlacementConfirmTray: View {
         switch result {
         case .lockedByLevel: return "Locked — increase player level."
         case .duplicateUnique: return "Already placed."
+        case .capReached: return "Upgrade your Dog HQ to build more."
         case .occupied: return "Tile is occupied."
         case .insufficientResource: return "Not enough resources."
         case .success: return ""

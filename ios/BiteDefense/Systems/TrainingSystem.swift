@@ -42,11 +42,14 @@ final class TrainingSystem {
             return .noFortCapacity
         }
 
-        // Cost + train time.
+        // Cost + train time. Each troop type pays from a fixed resource
+        // (soldier = milk, archer = water) — `preferred` is ignored.
+        _ = preferred
         let troopDef = TroopConfig.def(for: troopType)
         let cost = troopDef.trainCost(level: troopLevel)
-        guard state.canAffordFlex(cost) else { return .insufficientResources }
-        guard state.spendFlex(cost, preferred: preferred) else {
+        let payResource = troopDef.trainResource
+        guard state.canAfford(cost, in: payResource) else { return .insufficientResources }
+        guard state.spend(cost, from: payResource) else {
             return .insufficientResources
         }
 
@@ -101,7 +104,7 @@ final class TrainingSystem {
         let refund = cost / 2
         q.remove(at: index)
         state.trainingQueues[campId] = q
-        if refund > 0 { state.add(refund, to: .water) }
+        if refund > 0 { state.add(refund, to: def.trainResource) }
         EventBus.shared.send(.trainingCancelled(buildingId: campId))
     }
 

@@ -29,8 +29,11 @@ struct TroopDef {
     /// Seconds between attacks.
     let attackSpeed: [Double]
     let trainTime: [Double]
-    /// Train cost paid in either water or milk (player picks).
+    /// Train cost paid in the specific resource dictated by `trainResource`.
     let trainCost: [Int]
+    /// Which resource pays for training this troop type. Soldiers drink milk,
+    /// archers drink water — forces the player to diversify economy.
+    let trainResource: ResourceKind
     /// Post-battle feeding cost per survivor.
     let feedWater: Int
     let feedMilk: Int
@@ -63,6 +66,7 @@ enum TroopConfig {
             attackSpeed: [0.8, 0.75, 0.7, 0.65, 0.6],
             trainTime:   [8, 15, 25, 40, 60],
             trainCost:   [25, 55, 95, 160, 270],
+            trainResource: .milk,
             feedWater: 3, feedMilk: 2, maxLevel: 5
         ),
         .archer: TroopDef(
@@ -76,6 +80,7 @@ enum TroopConfig {
             attackSpeed: [1.0, 0.95, 0.9, 0.85, 0.8],
             trainTime:   [12, 22, 35, 55, 80],
             trainCost:   [35, 70, 125, 215, 360],
+            trainResource: .water,
             feedWater: 3, feedMilk: 0, maxLevel: 5
         )
     ]

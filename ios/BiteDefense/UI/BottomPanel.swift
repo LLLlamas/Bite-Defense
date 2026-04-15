@@ -23,11 +23,13 @@ struct BottomPanel: View {
                 // bottom-right corner) so the toolbar covers all building-phase
                 // controls in one strip.
                 toolbarIconButton(symbol: "info.circle.fill",
+                                  label: "Info",
                                   tint: .blue,
                                   active: coordinator.infoCardVisible) {
                     coordinator.toggleInfoCard()
                 }
                 toolbarIconButton(symbol: "cart.fill",
+                                  label: "Shop",
                                   tint: .orange,
                                   active: coordinator.storeOpen) {
                     coordinator.toggleStore()
@@ -39,15 +41,22 @@ struct BottomPanel: View {
         .background(.black.opacity(0.55))
     }
 
-    private func toolbarIconButton(symbol: String, tint: Color, active: Bool,
+    private func toolbarIconButton(symbol: String, label: String,
+                                    tint: Color, active: Bool,
                                     action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.callout)
-                .foregroundStyle(.white)
-                .frame(width: 34, height: 34)
-                .background(active ? tint : tint.opacity(0.7), in: Circle())
-                .overlay(Circle().stroke(.white.opacity(0.25), lineWidth: 1))
+            HStack(spacing: 5) {
+                Image(systemName: symbol)
+                    .font(.caption.bold())
+                Text(label)
+                    .font(.caption.bold())
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .frame(height: 32)
+            .background(active ? tint : tint.opacity(0.7),
+                        in: Capsule())
+            .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }

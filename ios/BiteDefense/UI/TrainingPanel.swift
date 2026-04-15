@@ -191,7 +191,7 @@ struct TrainingPanel: View {
         let level = camp.level
         let cost = def.trainCost(level: level)
         let time = def.trainTime(level: level)
-        let canAfford = coordinator.state.canAffordFlex(cost)
+        let canAfford = coordinator.state.canAfford(cost, in: def.trainResource)
         let hasFortSpace = coordinator.state.fortAvailableSlots >= level
         let disabled = queueFull || !canAfford || !hasFortSpace
 
@@ -203,7 +203,7 @@ struct TrainingPanel: View {
                     Text(def.emoji).font(.title2)
                     Text(def.displayName).font(.caption2.bold())
                         .foregroundStyle(.white)
-                    Text("\(cost) 💧/🥛")
+                    Text("\(cost) \(def.trainResource.emoji)")
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.9))
                     Text(timeString(time))
@@ -227,24 +227,21 @@ struct TrainingPanel: View {
 
             // Top-off button: shown when the only blocker is resources.
             if !canAfford && !queueFull && hasFortSpace {
-                topOffButton(cost: cost)
+                topOffButton(cost: cost, resource: def.trainResource)
             }
         }
     }
 
     /// Shows a "+N 🦴 → Top up" button that converts premium bones into enough
-    /// of the cheaper resource (water or milk) to afford training.
+    /// of this troop's specific training resource to afford training.
     @ViewBuilder
-    private func topOffButton(cost: Int) -> some View {
-        let waterShort = max(0, cost - coordinator.state.water)
-        let milkShort  = max(0, cost - coordinator.state.milk)
-        // Pick the cheaper side to top up — fewer bones required.
-        let resource: ResourceKind = waterShort <= milkShort ? .water : .milk
-        let short = resource == .water ? waterShort : milkShort
+    private func topOffButton(cost: Int, resource: ResourceKind) -> some View {
+        let have = resource == .water ? coordinator.state.water : coordinator.state.milk
+        let short = max(0, cost - have)
         let bones = coordinator.state.bonesToCover(shortfall: short, resource: resource)
         let canAffordBones = coordinator.state.canAffordPremium(bones)
         Button {
-            _ = coordinator.state.topUpShortfallFlex(needed: cost)
+            _ = coordinator.state.topUpShortfall(needed: cost, resource: resource)
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: "bolt.fill").font(.caption2)

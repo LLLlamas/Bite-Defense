@@ -23,8 +23,10 @@ struct StorePanel: View {
         let def = BuildingConfig.def(for: type)
         let isPlacingThis = coordinator.placement?.type == type
         let isLockedByLevel = coordinator.state.playerLevel < def.unlockLevel
-        let alreadyPlaced = def.unique && coordinator.state.buildings.contains { $0.type == type }
-        let disabled = isLockedByLevel || alreadyPlaced
+        let existingCount = coordinator.state.buildings.filter { $0.type == type }.count
+        let alreadyPlaced = def.unique && existingCount >= 1
+        let capReached = def.cappedByHQLevel && existingCount >= max(1, coordinator.state.hqLevel)
+        let disabled = isLockedByLevel || alreadyPlaced || capReached
 
         Button {
             if isPlacingThis {
@@ -40,8 +42,17 @@ struct StorePanel: View {
                 Text("\(def.placementCost()) 💧/🥛")
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.85))
+                if def.unique {
+                    Text("\(existingCount)/1")
+                        .font(.system(size: 8, design: .monospaced))
+                        .foregroundStyle(alreadyPlaced ? .orange : .white.opacity(0.6))
+                } else if def.cappedByHQLevel {
+                    Text("\(existingCount)/\(max(1, coordinator.state.hqLevel))")
+                        .font(.system(size: 8, design: .monospaced))
+                        .foregroundStyle(capReached ? .orange : .white.opacity(0.6))
+                }
             }
-            .frame(width: 72, height: 78)
+            .frame(width: 72, height: 88)
             .background(
                 RoundedRectangle(cornerRadius: 10)
                     .fill(isPlacingThis ? Color.yellow.opacity(0.25)
