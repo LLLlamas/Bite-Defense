@@ -66,6 +66,7 @@ final class GameScene: SKScene {
         refreshPendingMovePreview()
         syncUnitPositions()
         syncBuildingProgress()
+        syncBuildingHighlights()
         syncSpawnIndicator()
     }
 
@@ -143,22 +144,28 @@ final class GameScene: SKScene {
         case .resourceGained(let kind, let amount):
             spawnFloatingToast(emoji: kind.emoji,
                                text: "+\(amount)",
-                               color: floatColor(for: kind))
+                               color: floatColor(for: kind),
+                               target: toastTarget(for: kind))
         case .resourceSpent(let kind, let amount):
             spawnFloatingToast(emoji: kind.emoji,
                                text: "-\(amount)",
-                               color: .red)
+                               color: .red,
+                               target: toastTarget(for: kind))
         case .premiumBonesGained(let amount):
-            spawnFloatingToast(emoji: "🦴", text: "+\(amount)", color: .purple)
+            spawnFloatingToast(emoji: "🦴", text: "+\(amount)",
+                               color: SKColor(red: 0.85, green: 0.65, blue: 1.0, alpha: 1),
+                               target: .bones)
         case .premiumBonesSpent(let amount):
-            spawnFloatingToast(emoji: "🦴", text: "-\(amount)", color: .red)
+            spawnFloatingToast(emoji: "🦴", text: "-\(amount)",
+                               color: .red, target: .bones)
         case .xpGained(let amount):
             spawnFloatingToast(emoji: "⭐", text: "+\(amount) XP",
-                               color: SKColor(red: 1, green: 0.85, blue: 0.2, alpha: 1))
+                               color: SKColor(red: 1, green: 0.85, blue: 0.2, alpha: 1),
+                               target: .level)
         case .playerLeveledUp(let level):
             spawnFloatingToast(emoji: "🎉", text: "Level \(level)!",
                                color: SKColor(red: 1, green: 0.85, blue: 0.2, alpha: 1),
-                               bigger: true)
+                               target: .level, bigger: true)
         case .trainingQueued, .trainingCancelled,
              .trainingBlockedNoFort, .troopTrained,
              .waveStarted, .waveComplete, .waveFailed:
@@ -207,9 +214,15 @@ final class GameScene: SKScene {
     }
 
     // MARK: - Screen-space resource / XP toasts
+    //
+    // Each toast spawns just below its matching HUD chip, fades in while
+    // drifting up to the chip, then fades out. Keeps the feedback anchored
+    // to the resource the player needs to read, instead of stacking in a
+    // column that would overlap the map and the HUD at once.
 
-    /// Each new toast stacks below the previous so a burst of gains is readable.
-    private var floatingToastStack: [SKNode] = []
+    private enum ToastTarget {
+        case water, milk, dogCoins, bones, level
+    }
 
     private func floatColor(for kind: ResourceKind) -> SKColor {
         switch kind {
@@ -219,15 +232,41 @@ final class GameScene: SKScene {
         }
     }
 
-    /// Spawns a chip (emoji + value) at the top of the screen that slides up
-    /// and fades. Attached to the camera so it's visible regardless of pan/zoom.
+    /// Camera-local target position for each HUD chip. These are approximations
+    /// matching `HUDView`'s left-to-right chip order (water, milk, coins,
+    /// bones, Spacer, Level). Close enough for the toast-fly animation to
+    /// read correctly at any supported device width.
+    private func hudChipPoint(_ target: ToastTarget) -> CGPoint {
+        let sw = size.width
+        let sh = size.height
+        // HUD sits under the safe-area top; chip vertical center ~= 50pt below
+        // the scene's top edge in camera-local coords.
+        let y = sh / 2 - 50
+        switch target {
+        case .water:    return CGPoint(x: -sw / 2 + 50,  y: y)
+        case .milk:     return CGPoint(x: -sw / 2 + 116, y: y)
+        case .dogCoins: return CGPoint(x: -sw / 2 + 174, y: y)
+        case .bones:    return CGPoint(x: -sw / 2 + 226, y: y)
+        case .level:    return CGPoint(x:  sw / 2 - 54,  y: y)
+        }
+    }
+
     private func spawnFloatingToast(emoji: String, text: String,
-                                     color: SKColor, bigger: Bool = false) {
+                                     color: SKColor, target: ToastTarget,
+                                     bigger: Bool = false) {
         let container = SKNode()
         container.zPosition = 2000
 
         let font = bigger ? "AvenirNext-Heavy" : "AvenirNext-Bold"
-        let fontSize: CGFloat = bigger ? 18 : 13
+        let fontSize: CGFloat = bigger ? 16 : 13
+
+        let icon = SKLabelNode(text: emoji)
+        icon.fontName = "AppleColorEmoji"
+        icon.fontSize = fontSize
+        icon.verticalAlignmentMode = .center
+        icon.horizontalAlignmentMode = .right
+        icon.position = CGPoint(x: -3, y: 0)
+        container.addChild(icon)
 
         let body = SKLabelNode(text: text)
         body.fontName = font
@@ -235,55 +274,42 @@ final class GameScene: SKScene {
         body.fontColor = color
         body.verticalAlignmentMode = .center
         body.horizontalAlignmentMode = .left
-
-        let icon = SKLabelNode(text: emoji)
-        icon.fontName = "AppleColorEmoji"
-        icon.fontSize = fontSize
-        icon.verticalAlignmentMode = .center
-        icon.horizontalAlignmentMode = .right
-        icon.position = CGPoint(x: -6, y: 0)
-
-        container.addChild(icon)
-        body.position = CGPoint(x: 0, y: 0)
+        body.position = CGPoint(x: 3, y: 0)
         container.addChild(body)
 
-        // Drop-shadow-ish background pill.
-        let approxW = CGFloat(text.count) * fontSize * 0.55 + 36
-        let bg = SKShapeNode(rectOf: CGSize(width: approxW, height: fontSize + 10),
-                             cornerRadius: (fontSize + 10) / 2)
-        bg.fillColor = SKColor.black.withAlphaComponent(0.7)
-        bg.strokeColor = color.withAlphaComponent(0.6)
+        let approxW = CGFloat(text.count) * fontSize * 0.58 + 28
+        let bg = SKShapeNode(rectOf: CGSize(width: approxW, height: fontSize + 8),
+                             cornerRadius: (fontSize + 8) / 2)
+        bg.fillColor = SKColor.black.withAlphaComponent(0.72)
+        bg.strokeColor = color.withAlphaComponent(0.7)
         bg.lineWidth = 1
         bg.zPosition = -1
-        bg.position = CGPoint(x: approxW / 2 - 18, y: 0)
         container.addChild(bg)
 
-        // Position: top-center of the screen, stack each new toast below.
-        let slot = floatingToastStack.count
-        let startX: CGFloat = -40
-        let topY = size.height / 2 - 70 - CGFloat(slot) * 26
-        container.position = CGPoint(x: startX, y: topY)
+        // Start just below the chip, drift up to meet it, then fade out.
+        let endPoint = hudChipPoint(target)
+        let startPoint = CGPoint(x: endPoint.x, y: endPoint.y - 34)
+        container.position = startPoint
         container.alpha = 0
         gameCamera.addChild(container)
-        floatingToastStack.append(container)
 
-        let lifetime: TimeInterval = 1.4
         container.run(SKAction.sequence([
             SKAction.group([
-                SKAction.fadeIn(withDuration: 0.12),
-                SKAction.moveBy(x: 0, y: 8, duration: 0.12)
+                SKAction.fadeAlpha(to: 1.0, duration: 0.16),
+                SKAction.move(to: endPoint, duration: 0.55)
             ]),
-            SKAction.wait(forDuration: lifetime - 0.4),
-            SKAction.group([
-                SKAction.fadeOut(withDuration: 0.28),
-                SKAction.moveBy(x: 0, y: 16, duration: 0.28)
-            ]),
-            SKAction.run { [weak self, weak container] in
-                guard let self, let container else { return }
-                self.floatingToastStack.removeAll { $0 === container }
-            },
+            SKAction.wait(forDuration: 0.25),
+            SKAction.fadeOut(withDuration: 0.28),
             SKAction.removeFromParent()
         ]))
+    }
+
+    private func toastTarget(for kind: ResourceKind) -> ToastTarget {
+        switch kind {
+        case .water: return .water
+        case .milk:  return .milk
+        case .dogCoins: return .dogCoins
+        }
     }
 
     private func spawnProjectile(fromCol: Double, fromRow: Double,
@@ -312,6 +338,14 @@ final class GameScene: SKScene {
         }
         for e in state.enemies {
             enemies[e.id]?.update(from: e)
+        }
+    }
+
+    private func syncBuildingHighlights() {
+        guard let coordinator else { return }
+        let highlighted = coordinator.highlightedBuildingIds
+        for (id, node) in buildings {
+            node.setGuidanceHighlight(highlighted.contains(id))
         }
     }
 
@@ -349,23 +383,22 @@ final class GameScene: SKScene {
     /// Since the indicator is a child of the camera, this always renders at
     /// the matching screen corner with a small inset.
     private func screenCornerPosition(_ corner: Int) -> CGPoint {
-        let inset: CGFloat = 46
+        // Asymmetric insets so the indicator sits inside the playfield strip
+        // and never overlaps the top HUD or the bottom toolbar.
+        let sideInset: CGFloat = 46
+        let topInset: CGFloat = 90
+        let bottomInset: CGFloat = 120
         let w = size.width
         let h = size.height
-        // Camera is centered: local origin (0,0) is the screen center.
-        let halfW = w / 2 - inset
-        let halfH = h / 2 - inset
-        // Account for camera zoom — children of a scaled camera get scaled
-        // too, so we divide positional offsets by the camera scale.
-        let sx = gameCamera.xScale
-        let sy = gameCamera.yScale
-        let dx = halfW * sx
-        let dy = halfH * sy
+        let halfW = w / 2 - sideInset
+        let dx = halfW * gameCamera.xScale
+        let topY = (h / 2 - topInset) * gameCamera.yScale
+        let botY = (h / 2 - bottomInset) * gameCamera.yScale
         switch corner {
-        case 0: return CGPoint(x: -dx, y:  dy) // TL
-        case 1: return CGPoint(x:  dx, y:  dy) // TR
-        case 2: return CGPoint(x: -dx, y: -dy) // BL
-        case 3: return CGPoint(x:  dx, y: -dy) // BR
+        case 0: return CGPoint(x: -dx, y:  topY) // TL
+        case 1: return CGPoint(x:  dx, y:  topY) // TR
+        case 2: return CGPoint(x: -dx, y: -botY) // BL
+        case 3: return CGPoint(x:  dx, y: -botY) // BR
         default: return .zero
         }
     }

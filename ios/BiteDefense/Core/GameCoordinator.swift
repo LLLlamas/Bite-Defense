@@ -235,6 +235,27 @@ final class GameCoordinator {
 
     func dismissGuidance() { guidanceMessage = nil }
 
+    /// Building IDs that should pulse with a yellow aura while a guidance
+    /// card is on-screen — teaches the player which tiles the card refers to.
+    /// Returns an empty set when there's nothing meaningful to highlight
+    /// (e.g. `.needHQ` when no HQ exists yet).
+    var highlightedBuildingIds: Set<Int> {
+        guard let msg = guidanceMessage else { return [] }
+        switch msg {
+        case .needHQ:
+            return []
+        case .hqStillBuilding:
+            return Set(state.buildings.filter { $0.type == .dogHQ }.map { $0.id })
+        case .needTroops:
+            // Training camps produce dogs; forts house them. Highlight both so
+            // the player understands the pipeline — and if one is missing the
+            // other set still guides them to what they do have.
+            return Set(state.buildings
+                .filter { $0.type == .trainingCamp || $0.type == .fort }
+                .map { $0.id })
+        }
+    }
+
     var hasTroops: Bool {
         state.troops.contains { $0.state != .dead }
     }

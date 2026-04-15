@@ -16,6 +16,7 @@ final class Building: SKNode {
     private var buildOverlay: SKNode?
     private var buildBar: SKShapeNode?
     private var buildLabel: SKLabelNode?
+    private var guidanceHighlight: SKShapeNode?
 
     init(model: BuildingModel, view: SKView) {
         self.buildingId = model.id
@@ -164,6 +165,40 @@ final class Building: SKNode {
         buildLabel?.fontSize = 11
         buildLabel?.fontName = "AvenirNext-Bold"
         buildLabel?.fontColor = .white
+    }
+
+    /// Pulsing yellow outline used by guidance cards to point the player at a
+    /// specific building ("You need dog troops" highlights training camps, etc).
+    func setGuidanceHighlight(_ active: Bool) {
+        if active, guidanceHighlight == nil {
+            let def = BuildingConfig.def(for: type)
+            let size = def.worldSize
+            let ring = SKShapeNode(rect: CGRect(x: -4, y: -size.height - 4,
+                                                 width: size.width + 8,
+                                                 height: size.height + 8),
+                                    cornerRadius: 9)
+            ring.strokeColor = SKColor(red: 1.0, green: 0.92, blue: 0.3, alpha: 1)
+            ring.lineWidth = 3
+            ring.fillColor = SKColor(red: 1.0, green: 0.92, blue: 0.3, alpha: 0.12)
+            ring.zPosition = 18
+            ring.name = "guidanceHighlight"
+            let pulse = SKAction.repeatForever(SKAction.sequence([
+                SKAction.group([
+                    SKAction.fadeAlpha(to: 0.45, duration: 0.55),
+                    SKAction.scale(to: 1.06, duration: 0.55)
+                ]),
+                SKAction.group([
+                    SKAction.fadeAlpha(to: 1.0, duration: 0.55),
+                    SKAction.scale(to: 1.0, duration: 0.55)
+                ])
+            ]))
+            ring.run(pulse)
+            addChild(ring)
+            guidanceHighlight = ring
+        } else if !active, let ring = guidanceHighlight {
+            ring.removeFromParent()
+            guidanceHighlight = nil
+        }
     }
 
     func setSelected(_ selected: Bool) {
