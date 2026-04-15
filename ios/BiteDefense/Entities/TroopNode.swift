@@ -71,20 +71,24 @@ final class TroopNode: SKNode {
     /// in the reference gif. Sits below everything else on the node so the
     /// body/emoji/HP bar paint on top.
     private static func makeAura(color: SKColor) -> SKShapeNode {
-        let ring = SKShapeNode(circleOfRadius: 18)
+        // Keep the aura tight around the body so it doesn't visually bleed
+        // into neighboring tiles (that made tile taps feel unresponsive).
+        let ring = SKShapeNode(circleOfRadius: 13)
         ring.strokeColor = color.withAlphaComponent(0.55)
         ring.fillColor = color.withAlphaComponent(0.18)
         ring.lineWidth = 2
         ring.zPosition = -2
-        ring.setScale(0.85)
-        ring.alpha = 0.9
+        ring.setScale(0.9)
+        ring.alpha = 0.85
+        // Don't absorb taps — tile taps must reach the scene input handler.
+        ring.isUserInteractionEnabled = false
         let pulseOut = SKAction.group([
-            SKAction.scale(to: 1.15, duration: 0.9),
-            SKAction.fadeAlpha(to: 0.25, duration: 0.9)
+            SKAction.scale(to: 1.0, duration: 0.9),
+            SKAction.fadeAlpha(to: 0.35, duration: 0.9)
         ])
         let pulseIn = SKAction.group([
-            SKAction.scale(to: 0.85, duration: 0.9),
-            SKAction.fadeAlpha(to: 0.9, duration: 0.9)
+            SKAction.scale(to: 0.9, duration: 0.9),
+            SKAction.fadeAlpha(to: 0.85, duration: 0.9)
         ])
         pulseOut.timingMode = .easeInEaseOut
         pulseIn.timingMode = .easeInEaseOut

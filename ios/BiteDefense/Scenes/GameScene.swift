@@ -140,12 +140,28 @@ final class GameScene: SKScene {
             refreshDebugLabel()
         case .cameraMoved:
             refreshDebugLabel()
-        case .resourceGained, .resourceSpent,
-             .premiumBonesGained, .premiumBonesSpent,
-             .trainingQueued, .trainingCancelled,
+        case .resourceGained(let kind, let amount):
+            spawnFloatingToast(emoji: kind.emoji,
+                               text: "+\(amount)",
+                               color: floatColor(for: kind))
+        case .resourceSpent(let kind, let amount):
+            spawnFloatingToast(emoji: kind.emoji,
+                               text: "-\(amount)",
+                               color: .red)
+        case .premiumBonesGained(let amount):
+            spawnFloatingToast(emoji: "🦴", text: "+\(amount)", color: .purple)
+        case .premiumBonesSpent(let amount):
+            spawnFloatingToast(emoji: "🦴", text: "-\(amount)", color: .red)
+        case .xpGained(let amount):
+            spawnFloatingToast(emoji: "⭐", text: "+\(amount) XP",
+                               color: SKColor(red: 1, green: 0.85, blue: 0.2, alpha: 1))
+        case .playerLeveledUp(let level):
+            spawnFloatingToast(emoji: "🎉", text: "Level \(level)!",
+                               color: SKColor(red: 1, green: 0.85, blue: 0.2, alpha: 1),
+                               bigger: true)
+        case .trainingQueued, .trainingCancelled,
              .trainingBlockedNoFort, .troopTrained,
-             .waveStarted, .waveComplete, .waveFailed,
-             .playerLeveledUp:
+             .waveStarted, .waveComplete, .waveFailed:
             break
         }
         refreshSelection()
@@ -186,6 +202,86 @@ final class GameScene: SKScene {
                 SKAction.moveBy(x: 0, y: 24, duration: 0.55),
                 SKAction.fadeOut(withDuration: 0.55)
             ]),
+            SKAction.removeFromParent()
+        ]))
+    }
+
+    // MARK: - Screen-space resource / XP toasts
+
+    /// Each new toast stacks below the previous so a burst of gains is readable.
+    private var floatingToastStack: [SKNode] = []
+
+    private func floatColor(for kind: ResourceKind) -> SKColor {
+        switch kind {
+        case .water: return SKColor(red: 0.45, green: 0.75, blue: 1.0, alpha: 1)
+        case .milk:  return SKColor(red: 1.0,  green: 0.95, blue: 0.75, alpha: 1)
+        case .dogCoins: return SKColor(red: 1.0, green: 0.85, blue: 0.25, alpha: 1)
+        }
+    }
+
+    /// Spawns a chip (emoji + value) at the top of the screen that slides up
+    /// and fades. Attached to the camera so it's visible regardless of pan/zoom.
+    private func spawnFloatingToast(emoji: String, text: String,
+                                     color: SKColor, bigger: Bool = false) {
+        let container = SKNode()
+        container.zPosition = 2000
+
+        let font = bigger ? "AvenirNext-Heavy" : "AvenirNext-Bold"
+        let fontSize: CGFloat = bigger ? 18 : 13
+
+        let body = SKLabelNode(text: text)
+        body.fontName = font
+        body.fontSize = fontSize
+        body.fontColor = color
+        body.verticalAlignmentMode = .center
+        body.horizontalAlignmentMode = .left
+
+        let icon = SKLabelNode(text: emoji)
+        icon.fontName = "AppleColorEmoji"
+        icon.fontSize = fontSize
+        icon.verticalAlignmentMode = .center
+        icon.horizontalAlignmentMode = .right
+        icon.position = CGPoint(x: -6, y: 0)
+
+        container.addChild(icon)
+        body.position = CGPoint(x: 0, y: 0)
+        container.addChild(body)
+
+        // Drop-shadow-ish background pill.
+        let approxW = CGFloat(text.count) * fontSize * 0.55 + 36
+        let bg = SKShapeNode(rectOf: CGSize(width: approxW, height: fontSize + 10),
+                             cornerRadius: (fontSize + 10) / 2)
+        bg.fillColor = SKColor.black.withAlphaComponent(0.7)
+        bg.strokeColor = color.withAlphaComponent(0.6)
+        bg.lineWidth = 1
+        bg.zPosition = -1
+        bg.position = CGPoint(x: approxW / 2 - 18, y: 0)
+        container.addChild(bg)
+
+        // Position: top-center of the screen, stack each new toast below.
+        let slot = floatingToastStack.count
+        let startX: CGFloat = -40
+        let topY = size.height / 2 - 70 - CGFloat(slot) * 26
+        container.position = CGPoint(x: startX, y: topY)
+        container.alpha = 0
+        gameCamera.addChild(container)
+        floatingToastStack.append(container)
+
+        let lifetime: TimeInterval = 1.4
+        container.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.fadeIn(withDuration: 0.12),
+                SKAction.moveBy(x: 0, y: 8, duration: 0.12)
+            ]),
+            SKAction.wait(forDuration: lifetime - 0.4),
+            SKAction.group([
+                SKAction.fadeOut(withDuration: 0.28),
+                SKAction.moveBy(x: 0, y: 16, duration: 0.28)
+            ]),
+            SKAction.run { [weak self, weak container] in
+                guard let self, let container else { return }
+                self.floatingToastStack.removeAll { $0 === container }
+            },
             SKAction.removeFromParent()
         ]))
     }

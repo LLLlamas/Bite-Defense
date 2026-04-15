@@ -51,6 +51,10 @@ struct TrainingPanel: View {
                 buildingStripe(camp: camp)
             }
 
+            if !camp.isBuilding, available == 0 {
+                fortFullStripe(total: total)
+            }
+
             HStack(spacing: 10) {
                 ForEach(TroopConfig.order, id: \.self) { type in
                     troopButton(type: type, camp: camp,
@@ -76,6 +80,25 @@ struct TrainingPanel: View {
                 .stroke(.white.opacity(0.08), lineWidth: 1)
         )
         .padding(.horizontal, 12)
+    }
+
+    @ViewBuilder
+    private func fortFullStripe(total: Int) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+            if total == 0 {
+                Text("No Fort built — trained dogs have nowhere to garrison. Place a 🛡️ Fort first.")
+                    .font(.caption.bold())
+            } else {
+                Text("Fort is full (\(total)/\(total)). Upgrade a Fort or build another to train more dogs.")
+                    .font(.caption.bold())
+            }
+            Spacer()
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 8).padding(.vertical, 6)
+        .background(.red.opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
     }
 
     @ViewBuilder

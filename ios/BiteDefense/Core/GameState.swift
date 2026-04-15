@@ -155,7 +155,9 @@ final class GameState {
     static let xpPerLevel = [0, 50, 150, 400, 900, 2000, 4500, 9000, 17000, 32000, 60000]
 
     func addXP(_ amount: Int) {
+        guard amount > 0 else { return }
         playerXP += amount
+        EventBus.shared.send(.xpGained(amount: amount))
         while playerLevel < Self.xpPerLevel.count,
               playerXP >= Self.xpPerLevel[playerLevel] {
             playerLevel += 1

@@ -46,6 +46,7 @@ enum GameEvent {
                          toCol: Double, toRow: Double, damage: Int)
 
     // Progression
+    case xpGained(amount: Int)
     case playerLeveledUp(newLevel: Int)
 }
 

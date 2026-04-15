@@ -60,10 +60,13 @@ struct IntroCard: View {
                     .tint(.orange)
                 }
                 Spacer()
+                // "Got it!" before the HQ is placed; flips to "Let's Go!" once
+                // the player has an HQ down — reads as a clearer progression cue.
                 Button {
                     coordinator.dismissInfoCard()
                 } label: {
-                    Label("Got it!", systemImage: "checkmark.circle.fill")
+                    Label(coordinator.state.hq == nil ? "Got it!" : "Let's Go!",
+                          systemImage: "checkmark.circle.fill")
                         .font(.callout.bold())
                 }
                 .buttonStyle(.borderedProminent)

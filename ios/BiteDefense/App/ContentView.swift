@@ -50,24 +50,6 @@ struct ContentView: View {
             .animation(.spring(response: 0.32, dampingFraction: 0.86),
                        value: coordinator.pendingTroopMove)
 
-            // Floating corner buttons — only during BUILDING phase, and only
-            // when no placement/panel is active (keeps the screen uncluttered).
-            if coordinator.state.phase == .building,
-               coordinator.placement == nil,
-               coordinator.selectedBuildingId == nil,
-               coordinator.trainingPanelCampId == nil {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        CornerActionButtons(coordinator: coordinator)
-                            .padding(.trailing, 14)
-                            .padding(.bottom, 92)
-                    }
-                }
-                .allowsHitTesting(true)
-            }
-
             // Modal intro/info card.
             if coordinator.infoCardVisible {
                 Color.black.opacity(0.55)

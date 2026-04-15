@@ -44,6 +44,9 @@ final class Building: SKNode {
         label.horizontalAlignmentMode = .center
         label.verticalAlignmentMode = .center
         label.position = CGPoint(x: size.width / 2, y: -size.height / 2)
+        // Keep the icon on top of the construction overlay so Fort / HQ
+        // glyphs stay visible while the building is being built.
+        label.zPosition = 16
         self.emojiLabel = label
 
         self.levelBadge = Self.makeLevelBadge(level: model.level,

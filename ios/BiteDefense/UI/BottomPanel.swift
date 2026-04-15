@@ -18,11 +18,38 @@ struct BottomPanel: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
+                Spacer()
+                // Info + Store buttons live here (previously floating in the
+                // bottom-right corner) so the toolbar covers all building-phase
+                // controls in one strip.
+                toolbarIconButton(symbol: "info.circle.fill",
+                                  tint: .blue,
+                                  active: coordinator.infoCardVisible) {
+                    coordinator.toggleInfoCard()
+                }
+                toolbarIconButton(symbol: "cart.fill",
+                                  tint: .orange,
+                                  active: coordinator.storeOpen) {
+                    coordinator.toggleStore()
+                }
             }
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
         .background(.black.opacity(0.55))
+    }
+
+    private func toolbarIconButton(symbol: String, tint: Color, active: Bool,
+                                    action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.callout)
+                .foregroundStyle(.white)
+                .frame(width: 34, height: 34)
+                .background(active ? tint : tint.opacity(0.7), in: Circle())
+                .overlay(Circle().stroke(.white.opacity(0.25), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 
     private var difficultyRow: some View {
