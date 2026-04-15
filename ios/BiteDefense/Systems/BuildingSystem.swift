@@ -58,6 +58,15 @@ final class BuildingSystem {
             model.maxHP = GameState.hqMaxHP(level: 1)
             model.hp = model.maxHP
         }
+        // Kick off construction — operational systems skip the building until
+        // `buildTimeRemaining` hits zero (see ConstructionSystem).
+        let duration = Double(def.buildTime.first ?? 0)
+        if duration > 0 {
+            model.isBuilding = true
+            model.isUpgrading = false
+            model.buildTimeTotal = duration
+            model.buildTimeRemaining = duration
+        }
         grid.occupy(col: col, row: row,
                     width: def.tileWidth, height: def.tileHeight,
                     buildingId: id)
@@ -136,8 +145,34 @@ final class BuildingSystem {
             model.hp = model.maxHP
             state.hqLevel = model.level
         }
+        // Upgrade goes through the same build-timer pipeline. `buildTime`
+        // is indexed by *new* level (e.g. level-2 time at index 1).
+        let idxForTime = min(model.level - 1, def.buildTime.count - 1)
+        let duration = Double(def.buildTime[max(0, idxForTime)])
+        if duration > 0 {
+            model.isBuilding = true
+            model.isUpgrading = true
+            model.buildTimeTotal = duration
+            model.buildTimeRemaining = duration
+        }
         state.buildings[idx] = model
         EventBus.shared.send(.buildingUpgraded(buildingId: buildingId, newLevel: model.level))
+        return true
+    }
+
+    /// Spend premium bones to insta-finish a building's construction/upgrade.
+    /// Formula matches JS: 2 bones per minute remaining (min 1).
+    @discardableResult
+    func speedUp(buildingId: Int) -> Bool {
+        guard let idx = state.buildings.firstIndex(where: { $0.id == buildingId }) else {
+            return false
+        }
+        var model = state.buildings[idx]
+        guard model.isBuilding else { return false }
+        let cost = max(1, Int(ceil(model.buildTimeRemaining / 60.0)) * 2)
+        guard state.spendPremiumBones(cost) else { return false }
+        model.buildTimeRemaining = 0
+        state.buildings[idx] = model
         return true
     }
 }

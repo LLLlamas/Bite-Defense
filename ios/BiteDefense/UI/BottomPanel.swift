@@ -11,14 +11,13 @@ struct BottomPanel: View {
             difficultyRow
             HStack(spacing: 10) {
                 Button {
-                    coordinator.startPreBattle()
+                    coordinator.requestStartWave()
                 } label: {
                     Label(startWaveLabel, systemImage: "flag.checkered")
                         .font(.callout.bold())
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
-                .disabled(coordinator.state.hq == nil)
             }
         }
         .padding(.vertical, 8)
@@ -34,7 +33,6 @@ struct BottomPanel: View {
         }
     }
 
-    @ViewBuilder
     /// "Start Wave" during a fresh run (no streak). Only shows the number
     /// when the player is actively streaking — matches JS behavior where
     /// wave numbers only advance during a continued run.

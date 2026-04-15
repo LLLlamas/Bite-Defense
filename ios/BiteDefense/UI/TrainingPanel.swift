@@ -21,17 +21,35 @@ struct TrainingPanel: View {
         let total = coordinator.state.fortTotalCapacity
 
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("⚔️ Training Camp · Lv \(camp.level)")
-                    .font(.headline).foregroundStyle(.white)
+            // Unified header — icon, level pill, context, and close.
+            HStack(alignment: .top, spacing: 8) {
+                Text(camp.def.emoji).font(.title2)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(camp.def.displayName)
+                        .font(.headline).foregroundStyle(.white)
+                    Text("(\(camp.col), \(camp.row)) · Queue \(queue.count)/\(queueCap) · Fort slots \(available)/\(total)")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.7))
+                }
                 Spacer()
-                Text("Queue \(queue.count)/\(queueCap)")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.8))
+                Text("Lv \(camp.level)/\(camp.def.maxLevel)")
+                    .font(.caption.monospacedDigit().bold())
+                    .foregroundStyle(.yellow)
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(Color.yellow.opacity(0.15), in: Capsule())
+                Button {
+                    coordinator.closeTrainingPanel()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+                .buttonStyle(.plain)
             }
-            Text("Fort slots: \(available)/\(total) available")
-                .font(.caption.monospaced())
-                .foregroundStyle(.white.opacity(0.7))
+
+            if camp.isBuilding {
+                buildingStripe(camp: camp)
+            }
 
             HStack(spacing: 10) {
                 ForEach(TroopConfig.order, id: \.self) { type in
@@ -39,21 +57,109 @@ struct TrainingPanel: View {
                                 queueFull: queue.count >= queueCap)
                 }
             }
+            .opacity(camp.isBuilding ? 0.4 : 1.0)
+            .disabled(camp.isBuilding)
 
             if !queue.isEmpty {
                 Divider().background(.white.opacity(0.25))
                 queueView(queue: queue)
             }
 
-            HStack {
-                Spacer()
-                Button("Close") { coordinator.closeTrainingPanel() }
-                    .buttonStyle(.borderedProminent).tint(.gray)
-            }
+            // Building management row (Move / Upgrade / Delete) — inline so
+            // there's no separate "info panel" for training camps.
+            buildingActionRow(camp: camp)
         }
         .padding(12)
-        .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 12))
+        .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(.white.opacity(0.08), lineWidth: 1)
+        )
         .padding(.horizontal, 12)
+    }
+
+    @ViewBuilder
+    private func buildingStripe(camp: BuildingModel) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "hammer.fill")
+            Text("Under construction — \(Int(camp.buildTimeRemaining.rounded(.up)))s left")
+                .font(.caption.monospacedDigit().bold())
+            Spacer()
+            Button {
+                _ = coordinator.buildingSystem.speedUp(buildingId: camp.id)
+            } label: {
+                let cost = max(1, Int(ceil(camp.buildTimeRemaining / 60.0)) * 2)
+                Label("\(cost)🦴", systemImage: "bolt.fill")
+                    .font(.caption.bold())
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(Color.purple.opacity(0.85),
+                                in: RoundedRectangle(cornerRadius: 7))
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 6)
+        .background(.orange.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+        .foregroundStyle(.white)
+    }
+
+    @ViewBuilder
+    private func buildingActionRow(camp: BuildingModel) -> some View {
+        let canUpgrade = camp.level < camp.def.maxLevel && !camp.isBuilding
+        let coinCost = camp.def.upgradeCoinCost(currentLevel: camp.level) ?? 0
+        let canAffordCoins = coordinator.state.dogCoins >= coinCost
+        HStack(spacing: 8) {
+            // Reuse selectBuilding → enterMoveMode works only when
+            // selectedBuildingId matches; set it up then call.
+            Button {
+                coordinator.selectedBuildingId = camp.id
+                coordinator.trainingPanelCampId = nil
+                coordinator.enterMoveMode()
+            } label: {
+                Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+                    .frame(width: 34, height: 30)
+                    .background(Color.cyan.opacity(0.2),
+                                in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(.cyan)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                coordinator.selectedBuildingId = camp.id
+                coordinator.trainingPanelCampId = nil
+                coordinator.deleteSelected()
+            } label: {
+                Image(systemName: "trash")
+                    .frame(width: 34, height: 30)
+                    .background(Color.red.opacity(0.2),
+                                in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            Button {
+                coordinator.selectedBuildingId = camp.id
+                coordinator.upgradeSelected()
+                coordinator.selectedBuildingId = nil
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up.circle.fill")
+                    Text(camp.level >= camp.def.maxLevel
+                         ? "MAX" : "\(coinCost) 🪙")
+                        .font(.caption.bold().monospacedDigit())
+                }
+                .padding(.horizontal, 10).padding(.vertical, 7)
+                .background(canUpgrade && canAffordCoins
+                            ? Color.green.opacity(0.85)
+                            : Color.gray.opacity(0.45),
+                            in: RoundedRectangle(cornerRadius: 9))
+                .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canUpgrade || !canAffordCoins)
+        }
     }
 
     @ViewBuilder

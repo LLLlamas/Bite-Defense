@@ -25,6 +25,8 @@ final class TrainingSystem {
                payWith preferred: ResourceKind? = nil) -> QueueResult {
         guard let camp = state.buildings.first(where: { $0.id == campId }),
               camp.type == .trainingCamp else { return .invalidCamp }
+        // Can't queue troops at a camp that's still under construction.
+        if camp.isBuilding { return .invalidCamp }
 
         let campDef = camp.def
         let troopLevel = camp.level
@@ -117,6 +119,8 @@ final class TrainingSystem {
                 state.trainingQueues.removeValue(forKey: campId)
                 continue
             }
+            // Camp under construction — queue is paused.
+            if camp.isBuilding { continue }
 
             var head = q[0]
             head.timeRemaining -= dt

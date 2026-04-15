@@ -19,6 +19,11 @@ final class GameState {
     var dogCoins: Int = 5
     var premiumBones: Int = 0
 
+    /// **Testing flag.** When true, premium bones are effectively unlimited
+    /// (HUD shows ∞, `canAffordPremium` always true, `spendPremiumBones` is
+    /// a no-op). Flip to `false` before shipping the real soft-currency flow.
+    var adminMode: Bool = true
+
     @ObservationIgnored private(set) var waterFraction: Double = 0
     @ObservationIgnored private(set) var milkFraction: Double = 0
 
@@ -194,6 +199,20 @@ final class GameState {
         hqMaxHP[min(max(level, 1), hqMaxHP.count) - 1]
     }
 
+    // MARK: - Construction
+
+    /// True only if the HQ exists AND has finished construction.
+    var hasReadyHQ: Bool {
+        guard let hq else { return false }
+        return !hq.isBuilding && hq.hp > 0
+    }
+
+    /// True if at least one living, non-dead troop exists (garrisoned or
+    /// deployed). Drives wave-start gating.
+    var hasAtLeastOneTroop: Bool {
+        troops.contains { !$0.isDead }
+    }
+
     // MARK: - Premium bones (soft-currency bridge)
     //
     // Conversion rates — direct port of `GameState.js`:
@@ -202,10 +221,13 @@ final class GameState {
     static let bonesPerBaseResource = 25
     static let bonesPerDogCoin = 5
 
-    func canAffordPremium(_ amount: Int) -> Bool { premiumBones >= amount }
+    func canAffordPremium(_ amount: Int) -> Bool {
+        adminMode || premiumBones >= amount
+    }
 
     @discardableResult
     func spendPremiumBones(_ amount: Int) -> Bool {
+        if adminMode { return true }
         guard premiumBones >= amount else { return false }
         premiumBones -= amount
         EventBus.shared.send(.premiumBonesSpent(amount: amount))
@@ -284,6 +306,22 @@ struct BuildingModel: Identifiable, Hashable {
     /// Only tracked for the HQ right now (drives wave failure).
     var hp: Int = 0
     var maxHP: Int = 0
+
+    // MARK: - Construction state
+    /// True while the building is still being constructed or upgraded.
+    /// During this time ResourceSystem / TrainingSystem skip it, and wave
+    /// start is blocked if the HQ is still going up.
+    var isBuilding: Bool = false
+    var buildTimeTotal: Double = 0
+    var buildTimeRemaining: Double = 0
+    /// `true` if this "build" is an upgrade in progress (level already
+    /// incremented optimistically, just waiting on the timer).
+    var isUpgrading: Bool = false
+
+    var buildProgress: Double {
+        guard isBuilding, buildTimeTotal > 0 else { return 1 }
+        return max(0, min(1, 1 - buildTimeRemaining / buildTimeTotal))
+    }
 
     var def: BuildingDef { BuildingConfig.def(for: type) }
 }

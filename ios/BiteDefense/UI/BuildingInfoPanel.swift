@@ -36,6 +36,10 @@ struct BuildingInfoPanel: View {
                                 in: Capsule())
             }
 
+            if model.isBuilding {
+                buildingStripe(model: model)
+            }
+
             // Context row — generation rate / fort roster / training queue.
             contextLine(for: model)
 
@@ -113,17 +117,23 @@ struct BuildingInfoPanel: View {
 
     private func troopChip(key: TroopKey, count: Int) -> some View {
         let def = TroopConfig.def(for: key.type)
-        return HStack(spacing: 3) {
+        // Each troop uses slots equal to its level.
+        let slotsEach = key.level
+        let slotsTotal = slotsEach * count
+        return HStack(spacing: 4) {
             Text(def.emoji).font(.callout)
-            Text("Lv\(key.level)")
-                .font(.system(size: 9, design: .monospaced).bold())
-                .foregroundStyle(.white.opacity(0.85))
-            Text("×\(count)")
-                .font(.system(size: 10, design: .monospaced).bold())
-                .foregroundStyle(.yellow)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Lv\(key.level) \(def.displayName) ×\(count)")
+                    .font(.system(size: 10, design: .monospaced).bold())
+                    .foregroundStyle(.white)
+                Text("\(slotsEach) slot\(slotsEach == 1 ? "" : "s") each = \(slotsTotal)")
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.yellow.opacity(0.9))
+            }
         }
         .padding(.horizontal, 7).padding(.vertical, 3)
-        .background(Color.white.opacity(0.1), in: Capsule())
+        .background(Color.white.opacity(0.1),
+                    in: RoundedRectangle(cornerRadius: 7))
     }
 
     // MARK: - Actions
@@ -131,12 +141,8 @@ struct BuildingInfoPanel: View {
     @ViewBuilder
     private func actionRow(for model: BuildingModel) -> some View {
         let upgrade = upgradeText(for: model)
+        let canUpgrade = !model.isBuilding && model.level < model.def.maxLevel
         HStack(spacing: 8) {
-            if model.type == .trainingCamp {
-                iconButton(symbol: "figure.walk",
-                           tint: .orange,
-                           filled: true) { coordinator.openTrainingPanel() }
-            }
             iconButton(symbol: "arrow.up.and.down.and.arrow.left.and.right",
                        tint: .cyan) { coordinator.enterMoveMode() }
             iconButton(symbol: "trash",
@@ -153,18 +159,44 @@ struct BuildingInfoPanel: View {
                 .font(.caption.bold().monospacedDigit())
                 .padding(.horizontal, 10).padding(.vertical, 7)
                 .frame(minWidth: 110)
-                .background(upgrade.canAfford ? Color.green.opacity(0.85)
-                                              : Color.gray.opacity(0.5),
+                .background(canUpgrade && upgrade.canAfford
+                            ? Color.green.opacity(0.85)
+                            : Color.gray.opacity(0.5),
                             in: RoundedRectangle(cornerRadius: 9))
                 .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
-            .disabled(!upgrade.canAfford)
+            .disabled(!canUpgrade || !upgrade.canAfford)
 
             iconButton(symbol: "xmark",
                        tint: .gray,
                        filled: true) { coordinator.deselect() }
         }
+    }
+
+    @ViewBuilder
+    private func buildingStripe(model: BuildingModel) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "hammer.fill")
+            Text("Under construction — \(Int(model.buildTimeRemaining.rounded(.up)))s left")
+                .font(.caption.monospacedDigit().bold())
+            Spacer()
+            Button {
+                _ = coordinator.buildingSystem.speedUp(buildingId: model.id)
+            } label: {
+                let cost = max(1, Int(ceil(model.buildTimeRemaining / 60.0)) * 2)
+                Label("\(cost)🦴", systemImage: "bolt.fill")
+                    .font(.caption.bold())
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(Color.purple.opacity(0.85),
+                                in: RoundedRectangle(cornerRadius: 7))
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 6)
+        .background(.orange.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+        .foregroundStyle(.white)
     }
 
     private func iconButton(symbol: String, tint: Color,

@@ -76,8 +76,21 @@ struct ContentView: View {
                 IntroCard(coordinator: coordinator)
                     .transition(.scale.combined(with: .opacity))
             }
+
+            // Guidance overlay — shown when the player tries an action that
+            // isn't allowed yet (e.g. "Start Wave" with no troops).
+            if let msg = coordinator.guidanceMessage {
+                Color.black.opacity(0.55)
+                    .ignoresSafeArea()
+                    .onTapGesture { coordinator.dismissGuidance() }
+                GuidanceCard(message: msg) {
+                    coordinator.dismissGuidance()
+                }
+                .transition(.scale.combined(with: .opacity))
+            }
         }
         .animation(.easeInOut(duration: 0.25), value: coordinator.infoCardVisible)
+        .animation(.easeInOut(duration: 0.25), value: coordinator.guidanceMessage)
         .onAppear {
             scene.coordinator = coordinator
             coordinator.showInfoCardIfFirstTime()

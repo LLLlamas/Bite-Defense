@@ -23,25 +23,42 @@ struct IntroCard: View {
                 .buttonStyle(.plain)
             }
 
-            section(title: "Getting Started", items: [
-                ("🛒", "Open the Store to place buildings. Start with a Water Well and a Milk Farm to generate resources."),
-                ("🏛️", "Your Dog HQ is the heart of your base — if it falls, the wave fails."),
-                ("⚔️", "Build a Training Camp and a Fort to train and house dog troops.")
+            section(title: "First Step — Place Your Dog HQ", items: [
+                ("🏛️", "Place your Dog HQ wherever you like on the grid — it's free, but still takes time to build."),
+                ("⭐", "When the HQ finishes building, you'll earn XP. Every completed building, upgrade, and victorious wave adds XP."),
+                ("🔓", "Leveling up unlocks new buildings — the Archer Tower unlocks at level 3.")
+            ])
+
+            section(title: "Build Your Base", items: [
+                ("💧", "Place a Water Well and 🥛 Milk Farm to generate resources over time."),
+                ("⚔️", "Build a Training Camp and a 🛡️ Fort to train and house dog troops."),
+                ("🦴", "Low on water or milk? Spend premium bones to top off costs or speed up builds.")
             ])
 
             section(title: "Training Your Dogs", items: [
-                ("🐕", "Tap a Training Camp and choose Train to queue troops. They need Fort space before training can start."),
-                ("🏠", "Trained dogs wait in the Fort (garrisoned) until the next wave."),
-                ("🦴", "Short on water or milk? Spend premium bones to top off costs, or speed up training.")
+                ("🐕", "Tap a Training Camp to open its panel — queue troops from the same card."),
+                ("🏠", "Trained dogs garrison in the Fort. Each troop takes slots equal to its level."),
+                ("⚡", "Bones can also speed up any training item directly from the queue.")
             ])
 
             section(title: "Fighting Waves", items: [
-                ("🚩", "Tap Start Wave → position your troops during pre-battle → Ready for enemies! to begin."),
-                ("😾", "Cats spawn from one corner — the pulsing red marker shows which. It stays on-screen at any zoom."),
-                ("🔥", "Win in a row to build a streak. Going home resets the streak — take the rewards and regroup.")
+                ("🚩", "Start Wave needs at least one trained dog. No troops? You'll get a hint card."),
+                ("😾", "Cats spawn from one corner — the pulsing red marker shows which (visible at any zoom)."),
+                ("🔥", "Win in a row to build a streak. Going home resets wave numbers — take the rewards and regroup.")
             ])
 
-            HStack {
+            HStack(spacing: 10) {
+                if coordinator.state.hq == nil {
+                    Button {
+                        coordinator.dismissInfoCard()
+                        coordinator.enterPlacement(.dogHQ)
+                    } label: {
+                        Label("Place Dog HQ", systemImage: "mappin.and.ellipse")
+                            .font(.callout.bold())
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                }
                 Spacer()
                 Button {
                     coordinator.dismissInfoCard()
@@ -113,5 +130,51 @@ struct CornerActionButtons: View {
                 .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Short guidance card shown when the player tries an action that isn't
+/// allowed yet (e.g. "Start Wave" with no troops).
+struct GuidanceCard: View {
+    let message: GuidanceMessage
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(message.title)
+                    .font(.headline)
+                    .foregroundStyle(.yellow)
+                Spacer()
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+            }
+            Text(message.body)
+                .font(.callout)
+                .foregroundStyle(.white.opacity(0.9))
+            HStack {
+                Spacer()
+                Button {
+                    onDismiss()
+                } label: {
+                    Label("Got it", systemImage: "checkmark.circle.fill")
+                        .font(.callout.bold())
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: 440)
+        .background(.black.opacity(0.92), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(.yellow.opacity(0.45), lineWidth: 1.5)
+        )
+        .padding(.horizontal, 20)
     }
 }

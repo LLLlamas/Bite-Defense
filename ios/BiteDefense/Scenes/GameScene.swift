@@ -65,6 +65,7 @@ final class GameScene: SKScene {
         refreshPlacementPreview()
         refreshPendingMovePreview()
         syncUnitPositions()
+        syncBuildingProgress()
         syncSpawnIndicator()
     }
 
@@ -90,6 +91,8 @@ final class GameScene: SKScene {
             buildings.removeValue(forKey: id)
         case .buildingUpgraded(let id, let newLevel):
             buildings[id]?.setLevel(newLevel)
+            buildings[id]?.playUpgradeFlash()
+        case .buildingCompleted(let id, _, _):
             buildings[id]?.playUpgradeFlash()
         case .buildingDamaged(_, _, _, let amount):
             // TODO: attach damage number to building position.
@@ -213,6 +216,17 @@ final class GameScene: SKScene {
         }
         for e in state.enemies {
             enemies[e.id]?.update(from: e)
+        }
+    }
+
+    private func syncBuildingProgress() {
+        guard let state = coordinator?.state else { return }
+        for b in state.buildings {
+            buildings[b.id]?.updateBuildProgress(
+                isBuilding: b.isBuilding,
+                progress: b.buildProgress,
+                secondsLeft: b.buildTimeRemaining
+            )
         }
     }
 

@@ -13,6 +13,8 @@ enum GameEvent {
     case buildingRemoved(buildingId: Int)
     case buildingUpgraded(buildingId: Int, newLevel: Int)
     case buildingDamaged(buildingId: Int, hp: Int, maxHP: Int, amount: Int)
+    /// Construction (or upgrade construction) finished — grants XP.
+    case buildingCompleted(buildingId: Int, isUpgrade: Bool, xp: Int)
 
     // Resources
     case resourceGained(kind: ResourceKind, amount: Int)

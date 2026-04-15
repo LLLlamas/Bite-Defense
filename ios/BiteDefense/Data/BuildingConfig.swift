@@ -194,7 +194,9 @@ enum BuildingConfig {
     static func def(for type: BuildingType) -> BuildingDef { definitions[type]! }
 
     /// Stable ordering for the store panel — matches the JS reference's category flow.
+    /// Dog HQ is intentionally excluded: it's a unique first-placement flow
+    /// driven from the intro/info card, not the regular store.
     static let storeOrder: [BuildingType] = [
-        .dogHQ, .trainingCamp, .fort, .waterWell, .milkFarm, .archerTower, .wall
+        .trainingCamp, .fort, .waterWell, .milkFarm, .archerTower, .wall
     ]
 }

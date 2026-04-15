@@ -13,6 +13,9 @@ final class Building: SKNode {
     private let bodySprite: SKSpriteNode
     private let emojiLabel: SKLabelNode
     private var levelBadge: SKNode
+    private var buildOverlay: SKNode?
+    private var buildBar: SKShapeNode?
+    private var buildLabel: SKLabelNode?
 
     init(model: BuildingModel, view: SKView) {
         self.buildingId = model.id
@@ -96,6 +99,64 @@ final class Building: SKNode {
             SKAction.fadeOut(withDuration: 0.35),
             SKAction.removeFromParent()
         ]))
+    }
+
+    /// Show / update a construction overlay on top of the building while it's
+    /// under construction. Clears itself once `progress` reaches 1.0.
+    func updateBuildProgress(isBuilding: Bool, progress: Double, secondsLeft: Double) {
+        if !isBuilding {
+            buildOverlay?.removeFromParent()
+            buildOverlay = nil
+            buildBar = nil
+            buildLabel = nil
+            bodySprite.alpha = 1.0
+            return
+        }
+        bodySprite.alpha = 0.55
+        let size = bodySprite.size
+        if buildOverlay == nil {
+            let overlay = SKNode()
+            overlay.position = CGPoint(x: size.width / 2, y: -size.height / 2)
+            overlay.zPosition = 14
+            let bg = SKShapeNode(rect: CGRect(x: -size.width * 0.4, y: -4,
+                                              width: size.width * 0.8, height: 8),
+                                 cornerRadius: 3)
+            bg.fillColor = SKColor.black.withAlphaComponent(0.65)
+            bg.strokeColor = SKColor.white.withAlphaComponent(0.3)
+            bg.lineWidth = 1
+            overlay.addChild(bg)
+
+            let bar = SKShapeNode(rect: CGRect(x: -size.width * 0.4, y: -4,
+                                               width: 1, height: 8),
+                                  cornerRadius: 2)
+            bar.fillColor = SKColor(red: 1.0, green: 0.65, blue: 0.25, alpha: 0.95)
+            bar.strokeColor = .clear
+            overlay.addChild(bar)
+            self.buildBar = bar
+
+            let label = SKLabelNode(text: "🔨")
+            label.fontName = "AppleColorEmoji"
+            label.fontSize = 14
+            label.verticalAlignmentMode = .center
+            label.horizontalAlignmentMode = .center
+            label.position = CGPoint(x: 0, y: 16)
+            overlay.addChild(label)
+            self.buildLabel = label
+
+            addChild(overlay)
+            self.buildOverlay = overlay
+        }
+        // Resize the fill bar.
+        let clamped = max(0.0, min(1.0, progress))
+        let w = max(1.0, size.width * 0.8 * clamped)
+        buildBar?.path = CGPath(roundedRect: CGRect(x: -size.width * 0.4, y: -4,
+                                                    width: w, height: 8),
+                                cornerWidth: 2, cornerHeight: 2,
+                                transform: nil)
+        buildLabel?.text = "🔨 \(Int(secondsLeft.rounded(.up)))s"
+        buildLabel?.fontSize = 11
+        buildLabel?.fontName = "AvenirNext-Bold"
+        buildLabel?.fontColor = .white
     }
 
     func setSelected(_ selected: Bool) {

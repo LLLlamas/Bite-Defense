@@ -9,6 +9,7 @@ final class GameCoordinator {
     let state: GameState
     let grid: Grid
     let buildingSystem: BuildingSystem
+    let constructionSystem: ConstructionSystem
     let resourceSystem: ResourceSystem
     let trainingSystem: TrainingSystem
     let pathfinding: PathfindingSystem
@@ -36,12 +37,17 @@ final class GameCoordinator {
     var infoCardVisible: Bool = false
     private var hasShownInfoOnce: Bool = false
 
+    /// One-off banner/alert shown when the player tries to do something that
+    /// isn't allowed yet (e.g. "Start Wave" without troops).
+    var guidanceMessage: GuidanceMessage? = nil
+
     init() {
         let state = GameState()
         let grid = Grid()
         self.state = state
         self.grid = grid
         self.buildingSystem  = BuildingSystem(state: state, grid: grid)
+        self.constructionSystem = ConstructionSystem(state: state)
         self.resourceSystem  = ResourceSystem(state: state)
         self.trainingSystem  = TrainingSystem(state: state)
         self.pathfinding     = PathfindingSystem(grid: grid)
@@ -53,6 +59,7 @@ final class GameCoordinator {
 
     func tick(dt: Double) {
         let clamped = min(max(dt, 0), 0.25)
+        constructionSystem.update(dt: clamped)
         resourceSystem.update(dt: clamped)
         trainingSystem.update(dt: clamped)
         // Battle ticks are sped up by battleSpeed.
@@ -99,6 +106,14 @@ final class GameCoordinator {
     func selectBuilding(id: Int) {
         if placement != nil { return }
         if state.phase != .building { return }
+        // Training camps open straight into the unified training card —
+        // building info + troop roster + queue live in one place.
+        if let model = state.buildings.first(where: { $0.id == id }),
+           model.type == .trainingCamp {
+            selectedBuildingId = nil
+            trainingPanelCampId = id
+            return
+        }
         selectedBuildingId = id
         trainingPanelCampId = nil
     }
@@ -185,11 +200,34 @@ final class GameCoordinator {
 
     // MARK: - Wave controls
 
-    func startPreBattle() { waveSystem.enterPreBattle() }
+    /// Public entry point for the "Start Wave" button. Validates
+    /// preconditions and surfaces a guidance card instead of silently doing
+    /// nothing when the player is missing a prerequisite.
+    func requestStartWave() {
+        guard state.phase == .building else { return }
+        guard let hq = state.hq else {
+            guidanceMessage = .needHQ
+            return
+        }
+        if hq.isBuilding {
+            guidanceMessage = .hqStillBuilding
+            return
+        }
+        if !state.hasAtLeastOneTroop {
+            guidanceMessage = .needTroops
+            return
+        }
+        waveSystem.enterPreBattle()
+    }
+
+    /// Legacy callable used by some panels — same as `requestStartWave` now.
+    func startPreBattle() { requestStartWave() }
     func cancelPreBattle() { waveSystem.cancelPreBattle() }
     func deployBattle()   { waveSystem.deploy() }
     func dismissWaveResult() { waveSystem.dismissWaveResult() }
     func goHome() { waveSystem.goHome() }
+
+    func dismissGuidance() { guidanceMessage = nil }
 
     var hasTroops: Bool {
         state.troops.contains { $0.state != .dead }
@@ -255,12 +293,16 @@ final class GameCoordinator {
         pendingTroopMove = TilePos(col: col, row: row)
     }
 
-    /// Commit the pending troop move (if any).
+    /// Commit the pending troop move (if any). After confirming, both the
+    /// pending target *and* the selected troop are cleared so the next tap
+    /// on a different troop selects it cleanly — fixes the "selector stuck
+    /// on the first dog" bug reported during testing.
     func confirmPendingMove() {
         guard let target = pendingTroopMove,
               let id = state.selectedTroopId,
               let tIdx = state.troops.firstIndex(where: { $0.id == id }) else {
             pendingTroopMove = nil
+            state.selectedTroopId = nil
             return
         }
         state.troops[tIdx].col = Double(target.col) + 0.5
@@ -269,6 +311,7 @@ final class GameCoordinator {
                                           col: state.troops[tIdx].col,
                                           row: state.troops[tIdx].row))
         pendingTroopMove = nil
+        state.selectedTroopId = nil
     }
 
     func cancelPendingMove() { pendingTroopMove = nil }
@@ -280,4 +323,33 @@ struct PlacementMode {
     let type: BuildingType
     var candidate: TilePos?
     var movingId: Int?
+}
+
+/// Short, dismissible guidance shown when the player tries an action that
+/// isn't allowed yet.
+enum GuidanceMessage: Hashable, Identifiable {
+    case needHQ
+    case hqStillBuilding
+    case needTroops
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .needHQ: return "Place your Dog HQ first"
+        case .hqStillBuilding: return "Dog HQ still under construction"
+        case .needTroops: return "You need dog troops to fight"
+        }
+    }
+
+    var body: String {
+        switch self {
+        case .needHQ:
+            return "Every base needs a Dog HQ. Tap the ℹ️ button and choose \"Place Dog HQ\" — it's free to place, then takes some time to build."
+        case .hqStillBuilding:
+            return "Wait for the Dog HQ to finish construction, or spend premium bones to speed it up from the building card."
+        case .needTroops:
+            return "You need at least one trained dog in a Fort before a wave can start. Tap a Training Camp to train troops — they'll garrison in the Fort automatically."
+        }
+    }
 }

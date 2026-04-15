@@ -17,7 +17,8 @@ final class WaveSystem {
 
     func enterPreBattle() {
         guard state.phase == .building else { return }
-        guard state.hq != nil else { return }
+        // HQ must exist AND be finished building.
+        guard state.hasReadyHQ else { return }
         state.phase = .preBattle
 
         // Pick a random corner.

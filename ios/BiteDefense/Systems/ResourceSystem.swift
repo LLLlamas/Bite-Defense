@@ -12,6 +12,8 @@ final class ResourceSystem {
     func update(dt: Double) {
         guard dt > 0 else { return }
         for b in state.buildings {
+            // Buildings don't produce while still under construction.
+            if b.isBuilding { continue }
             let def = b.def
             guard let kind = def.generatesResource else { continue }
             let perMinute = Double(def.generationRate(at: b.level))

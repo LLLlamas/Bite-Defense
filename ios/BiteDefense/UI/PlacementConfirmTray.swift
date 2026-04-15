@@ -41,6 +41,8 @@ struct PlacementConfirmTray: View {
 
             if isMove {
                 moveActions(validTile: validTile)
+            } else if cost == 0 {
+                freePlacementActions(validTile: validTile)
             } else {
                 payActions(cost: cost, validTile: validTile)
             }
@@ -69,6 +71,29 @@ struct PlacementConfirmTray: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.cyan)
+            .disabled(!validTile)
+        }
+    }
+
+    // MARK: - Free placement (HQ)
+
+    @ViewBuilder
+    private func freePlacementActions(validTile: Bool) -> some View {
+        HStack(spacing: 12) {
+            Text("Placement is free. Construction takes time.")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.8))
+            Spacer()
+            Button("Cancel") { coordinator.cancelPlacement() }
+                .buttonStyle(.bordered).tint(.gray)
+            Button {
+                confirm(.water)
+            } label: {
+                Label("Place", systemImage: "checkmark.circle.fill")
+                    .font(.callout.bold())
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.green)
             .disabled(!validTile)
         }
     }
