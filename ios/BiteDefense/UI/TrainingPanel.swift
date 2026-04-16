@@ -194,11 +194,19 @@ struct TrainingPanel: View {
         let canAfford = coordinator.state.canAfford(cost, in: def.trainResource)
         let hasFortSpace = coordinator.state.fortAvailableSlots >= level
         let levelLocked = coordinator.state.playerLevel < def.unlockLevel
-        let disabled = levelLocked || queueFull || !canAfford || !hasFortSpace
+        // We intentionally leave the button enabled when the *only* blocker
+        // is fort space — the tap then routes the player to the Store's Fort
+        // card via `GameCoordinator.highlightStoreItem(.fort)`.
+        let disabled = levelLocked || queueFull || !canAfford
 
         VStack(spacing: 4) {
             Button {
-                _ = coordinator.queueTroop(type)
+                if !hasFortSpace {
+                    coordinator.closeTrainingPanel()
+                    coordinator.highlightStoreItem(.fort)
+                } else {
+                    _ = coordinator.queueTroop(type)
+                }
             } label: {
                 VStack(spacing: 3) {
                     ZStack {

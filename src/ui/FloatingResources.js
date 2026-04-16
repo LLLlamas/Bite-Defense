@@ -1,5 +1,5 @@
-// Spawns animated "-X Water" / "+X Milk" DOM elements that fly from a source
-// screen position toward the corresponding HUD icon and fade out.
+// Spawns animated "+X Milk" / "-X Water" DOM elements that pop in right below
+// the matching resource chip in the top HUD bar and then drift + fade out.
 
 const RESOURCE_META = {
   water: { icon: '💧', color: '#8ec9f7', hudId: 'hud-water' },
@@ -9,49 +9,52 @@ const RESOURCE_META = {
   bones: { icon: '💖', color: '#e84393', hudId: 'hud-bones' },
 };
 
-// Pool keeps DOM count low for frequent effects
-const activeFloaters = new Set();
+// Keep a running vertical offset per-chip so rapid-fire pops don't overlap.
+const chipStackOffset = new Map();
+const STACK_DECAY_MS = 550;
 
-export function spawnFloatingResource(amount, resource, sourceX, sourceY, isGain = false) {
+export function spawnFloatingResource(amount, resource, _sourceX, _sourceY, isGain = false) {
   const meta = RESOURCE_META[resource];
   if (!meta) return;
 
   const hudEl = document.getElementById(meta.hudId);
   if (!hudEl) return;
 
-  const hudRect = hudEl.getBoundingClientRect();
-  const targetX = hudRect.left + hudRect.width / 2;
-  const targetY = hudRect.top + hudRect.height / 2;
+  const rect = hudEl.getBoundingClientRect();
+  const originX = rect.left + rect.width / 2;
+  const originY = rect.bottom + 6; // anchor just beneath the chip
+
+  // Slight vertical stagger so consecutive pops read as a stack
+  const prev = chipStackOffset.get(meta.hudId) || { offset: 0, t: 0 };
+  const now = performance.now();
+  const staleness = now - prev.t;
+  const stackOffset = staleness < STACK_DECAY_MS ? prev.offset + 18 : 0;
+  chipStackOffset.set(meta.hudId, { offset: stackOffset, t: now });
 
   const el = document.createElement('div');
   el.className = 'res-floater ' + (isGain ? 'res-gain' : 'res-spend');
   const sign = isGain ? '+' : '-';
   el.innerHTML = `<span class="rf-icon">${meta.icon}</span><span class="rf-amount">${sign}${amount}</span>`;
-  el.style.left = `${sourceX}px`;
-  el.style.top = `${sourceY}px`;
+  // Centered under the chip
+  el.style.left = `${originX}px`;
+  el.style.top = `${originY + stackOffset}px`;
   el.style.color = meta.color;
 
   document.body.appendChild(el);
-  activeFloaters.add(el);
 
-  // Force reflow then trigger transition to target
+  // Force reflow then trigger the pop-and-drift animation
   requestAnimationFrame(() => {
-    el.style.transform = `translate(${targetX - sourceX}px, ${targetY - sourceY}px) scale(0.6)`;
-    el.style.opacity = '0';
+    el.classList.add('rf-anim');
   });
 
   setTimeout(() => {
     if (el.parentNode) el.parentNode.removeChild(el);
-    activeFloaters.delete(el);
-  }, 600);
+  }, 900);
 }
 
-// Convert world tile (col, row) → screen pixel (x, y) using camera + canvas
-import { TILE_SIZE } from '../core/Constants.js';
-import { tileToScreen } from '../world/IsoMath.js';
-
-export function spawnFromTile(amount, resource, col, row, camera, isGain = false) {
-  const p = tileToScreen(col, row, camera);
-  const ts = TILE_SIZE * camera.zoom;
-  spawnFloatingResource(amount, resource, p.x + ts * 0.5, p.y + ts * 0.3, isGain);
+// Legacy entrypoint kept for call sites that used to spawn from a world tile.
+// The tile position is ignored now — all pops anchor to the HUD chip so the
+// player's eye tracks back to the top bar.
+export function spawnFromTile(amount, resource, _col, _row, _camera, isGain = false) {
+  spawnFloatingResource(amount, resource, 0, 0, isGain);
 }

@@ -42,6 +42,12 @@ final class GameCoordinator {
     /// isn't allowed yet (e.g. "Start Wave" without troops).
     var guidanceMessage: GuidanceMessage? = nil
 
+    /// When non-nil, the StorePanel pulses the matching card so the player
+    /// can find the prerequisite building they need to buy. Set via
+    /// `highlightStoreItem(_:)`; auto-clears on a timer.
+    var shopHighlightedType: BuildingType? = nil
+    @ObservationIgnored private var shopHighlightTask: Task<Void, Never>? = nil
+
     /// Celebration overlay shown briefly when the player levels up. Lists any
     /// buildings / troops that became available at the new level.
     var levelUpPresentation: LevelUpInfo? = nil
@@ -199,7 +205,29 @@ final class GameCoordinator {
     @discardableResult
     func queueTroop(_ type: TroopType) -> TrainingSystem.QueueResult {
         guard let id = trainingPanelCampId else { return .invalidCamp }
-        return trainingSystem.queue(campId: id, troopType: type)
+        let result = trainingSystem.queue(campId: id, troopType: type)
+        // If the queue failed specifically because there's nowhere to house
+        // the trained troop, direct the player to the Store's Fort card.
+        if case .noFortCapacity = result {
+            highlightStoreItem(.fort)
+        }
+        return result
+    }
+
+    /// Pulse the matching Store card for a few seconds — used when the player
+    /// tries an action that depends on a building they haven't placed yet.
+    /// Opens the store automatically so the card is actually visible.
+    func highlightStoreItem(_ type: BuildingType, duration: TimeInterval = 3.0) {
+        storeOpen = true
+        shopHighlightedType = type
+        shopHighlightTask?.cancel()
+        shopHighlightTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            if self?.shopHighlightedType == type {
+                self?.shopHighlightedType = nil
+            }
+        }
     }
 
     func cancelTrainingQueueItem(index: Int) {
@@ -279,11 +307,12 @@ final class GameCoordinator {
         case .hqStillBuilding:
             return Set(state.buildings.filter { $0.type == .dogHQ }.map { $0.id })
         case .needTroops:
-            // Training camps produce dogs; forts house them. Highlight both so
-            // the player understands the pipeline — and if one is missing the
-            // other set still guides them to what they do have.
+            // Highlight training camps only — they're the tap target that
+            // produces dogs. If a Fort is also missing, the Store card
+            // glow (see `highlightStoreItem`) directs the player to place
+            // one, so the in-world Fort doesn't need to pulse here.
             return Set(state.buildings
-                .filter { $0.type == .trainingCamp || $0.type == .fort }
+                .filter { $0.type == .trainingCamp }
                 .map { $0.id })
         }
     }

@@ -3,9 +3,19 @@ import SpriteKit
 final class EnemyNode: SKNode {
     let enemyId: Int
     let type: EnemyType
-    private let body: SKShapeNode
-    private let emoji: SKLabelNode
+    private let body: SKNode
     private let hpBar: HPBar
+
+    /// Shared texture for the temporary cat sprite. Loaded lazily so missing
+    /// assets at runtime fall back to the procedural circle+emoji below.
+    private static let catTexture: SKTexture? = {
+        #if canImport(UIKit)
+        if let image = UIImage(named: "CatEnemy") {
+            return SKTexture(image: image)
+        }
+        #endif
+        return nil
+    }()
 
     init(model: EnemyModel) {
         self.enemyId = model.id
@@ -13,18 +23,35 @@ final class EnemyNode: SKNode {
         let def = EnemyConfig.def(for: model.type)
 
         let r: CGFloat = 10
-        let circle = SKShapeNode(circleOfRadius: r)
-        circle.fillColor = def.color.skColor
-        circle.strokeColor = SKColor(white: 0, alpha: 0.8)
-        circle.lineWidth = 1.5
-        self.body = circle
+        let isTank = model.type == .tankCat
 
-        let label = SKLabelNode(text: def.emoji)
-        label.fontName = "AppleColorEmoji"
-        label.fontSize = 14
-        label.horizontalAlignmentMode = .center
-        label.verticalAlignmentMode = .center
-        self.emoji = label
+        if let texture = EnemyNode.catTexture {
+            // Temporary bitmap — aspect-preserving, scaled so the tank reads
+            // slightly larger than the basic/fast variants (same as the
+            // hand-drawn fallback below).
+            let spriteSide = (isTank ? r * 2.6 : r * 2.1)
+            let sprite = SKSpriteNode(texture: texture,
+                                      size: CGSize(width: spriteSide,
+                                                   height: spriteSide))
+            sprite.zPosition = 0
+            self.body = sprite
+        } else {
+            // Fallback: colored circle + emoji (original behavior).
+            let group = SKNode()
+            let circle = SKShapeNode(circleOfRadius: r)
+            circle.fillColor = def.color.skColor
+            circle.strokeColor = SKColor(white: 0, alpha: 0.8)
+            circle.lineWidth = 1.5
+            group.addChild(circle)
+
+            let label = SKLabelNode(text: def.emoji)
+            label.fontName = "AppleColorEmoji"
+            label.fontSize = 14
+            label.horizontalAlignmentMode = .center
+            label.verticalAlignmentMode = .center
+            group.addChild(label)
+            self.body = group
+        }
 
         let bar = HPBar(width: 22)
         bar.position = CGPoint(x: 0, y: r + 3)
@@ -34,7 +61,6 @@ final class EnemyNode: SKNode {
         name = "Enemy.\(model.id)"
         zPosition = 12
         addChild(body)
-        addChild(emoji)
         addChild(hpBar)
         updatePosition(col: model.col, row: model.row)
         hpBar.update(hp: model.hp, maxHP: model.maxHP)

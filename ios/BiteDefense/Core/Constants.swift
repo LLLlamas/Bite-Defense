@@ -9,8 +9,10 @@ enum Constants {
     /// (despite the `IsoMath` naming), so tiles are squares of `TILE_SIZE = 32`.
     static let tileSize: CGFloat = 32
 
-    /// Camera zoom limits.
-    static let minZoom: CGFloat = 0.5
+    /// Camera zoom limits. `minZoom` is a hard floor; the input handler also
+    /// raises the effective floor dynamically so the viewport never exceeds
+    /// the map and leaves a blank border.
+    static let minZoom: CGFloat = 0.75
     static let maxZoom: CGFloat = 3.0
     static let defaultZoom: CGFloat = 1.0
 

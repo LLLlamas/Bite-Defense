@@ -230,6 +230,9 @@ export class UIManager {
     EventBus.on('training:complete', () => this._updateTrainingPanel());
     EventBus.on('training:queued', () => this._updateTrainingPanel());
     EventBus.on('training:cancelled', () => this._updateTrainingPanel());
+    EventBus.on('training:blockedNoFort', () => {
+      this._highlightShopItem('FORT', 'Build a Fort to house trained troops.');
+    });
     EventBus.on('difficulty:unlocked', () => this._updateDifficultyUI());
 
     EventBus.on('phase:preBattle', () => {
@@ -561,6 +564,7 @@ export class UIManager {
 
       const item = document.createElement('div');
       item.className = 'store-item';
+      item.dataset.configId = id;
 
       const unlocked = !config.unlockLevel || this.state.playerLevel >= config.unlockLevel;
       if (!unlocked) item.classList.add('locked');
@@ -603,6 +607,39 @@ export class UIManager {
 
   closeStore() {
     this.storePanel.classList.add('hidden');
+  }
+
+  // Open the store and pulse the store card for `configId`. Used when a user
+  // tries an action that depends on a building they don't have yet — the glow
+  // points them to the exact thing they need to buy.
+  _highlightShopItem(configId, hintText = null) {
+    // Make sure the store is open so the card is actually visible
+    if (this.storePanel.classList.contains('hidden')) {
+      this.storePanel.classList.remove('hidden');
+      this.closeBuildingInfo();
+      this.closeTraining();
+    }
+
+    const card = this.storeItems.querySelector(`.store-item[data-config-id="${configId}"]`);
+    if (!card) return;
+
+    // Restart the animation even if it's already playing
+    card.classList.remove('store-item-highlight');
+    void card.offsetWidth;
+    card.classList.add('store-item-highlight');
+
+    // Scroll it into view inside the panel if needed
+    try { card.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (_) {}
+
+    if (hintText && this._lastShopHint !== hintText) {
+      this._lastShopHint = hintText;
+    }
+
+    clearTimeout(this._highlightTimer);
+    this._highlightTimer = setTimeout(() => {
+      card.classList.remove('store-item-highlight');
+      this._lastShopHint = null;
+    }, 3200);
   }
 
   showBuildingInfo(building) {
@@ -818,7 +855,8 @@ export class UIManager {
             </div>
           </div>
           <button class="btn btn-train" data-troop="${id}"
-            ${!canAfford || queueFull || notEnoughSlots || noFort ? 'disabled' : ''}>Train</button>
+            data-needs-fort="${noFort || notEnoughSlots ? '1' : '0'}"
+            ${!canAfford || queueFull ? 'disabled' : ''}>Train</button>
         </div>
       `;
     }
@@ -862,6 +900,13 @@ export class UIManager {
     this.trainingContent.querySelectorAll('.btn-train').forEach(btn => {
       btn.addEventListener('click', () => {
         const troopId = btn.dataset.troop;
+        // If this click is blocked by missing fort capacity, close the
+        // training panel and route the user to the Fort card in the shop.
+        if (btn.dataset.needsFort === '1') {
+          this.closeTraining();
+          EventBus.emit('training:blockedNoFort', { building });
+          return;
+        }
         this.trainingSystem.queueTroop(building, troopId);
       });
     });

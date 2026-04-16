@@ -3,6 +3,22 @@ import { cartToIso, worldToScreen } from '../world/IsoMath.js';
 import { TROOPS } from '../data/TroopConfig.js';
 import { ENEMY_TYPES } from '../data/WaveConfig.js';
 
+// Shared, lazily-loaded sprite images. `ready` flips once the image decodes
+// so the first render before load still falls back cleanly.
+const SPRITES = {
+  cat: { src: 'assets/sprites/angry.png', img: null, ready: false },
+};
+function _loadSprite(key) {
+  const entry = SPRITES[key];
+  if (!entry || entry.img) return;
+  const img = new Image();
+  img.onload = () => { entry.ready = true; };
+  img.onerror = () => { entry.ready = false; };
+  img.src = entry.src;
+  entry.img = img;
+}
+_loadSprite('cat');
+
 export class UnitRenderer {
   constructor(ctx, camera) {
     this.ctx = ctx;
@@ -197,6 +213,25 @@ export class UnitRenderer {
     ctx.beginPath();
     ctx.ellipse(cx, cy + r * 0.85, r * 0.7, r * 0.25, 0, 0, Math.PI * 2);
     ctx.fill();
+
+    // If the sprite image has loaded, draw it in place of the hand-drawn cat.
+    // Tanks get a subtle armor ring over the sprite; HP bar still drawn below.
+    const sprite = SPRITES.cat;
+    if (sprite.ready && sprite.img) {
+      const size = r * 2.2;
+      ctx.drawImage(sprite.img, cx - size / 2, cy - size / 2 - r * 0.1, size, size);
+      if (isTank) {
+        ctx.strokeStyle = '#555';
+        ctx.lineWidth = 2 * zoom;
+        ctx.beginPath();
+        ctx.arc(cx, cy - r * 0.1, r * 0.95, -0.5, Math.PI + 0.5);
+        ctx.stroke();
+      }
+      if (unit.hp < unit.maxHp) {
+        this._drawHPBar(cx, cy - r - 5 * zoom, r * 1.5, zoom, unit.hp / unit.maxHp, false);
+      }
+      return;
+    }
 
     // Body
     const bodyColor = config?.color || '#FF6347';

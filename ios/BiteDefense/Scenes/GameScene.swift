@@ -286,20 +286,35 @@ final class GameScene: SKScene {
         bg.zPosition = -1
         container.addChild(bg)
 
-        // Start just below the chip, drift up to meet it, then fade out.
-        let endPoint = hudChipPoint(target)
-        let startPoint = CGPoint(x: endPoint.x, y: endPoint.y - 34)
+        // Pop in directly below the corresponding HUD chip, bounce once, then
+        // drift a touch further down and fade out. Keeps the player's eye on
+        // the chip whose value just changed.
+        let chipPoint = hudChipPoint(target)
+        let startPoint = CGPoint(x: chipPoint.x, y: chipPoint.y - 26)
+        let endPoint   = CGPoint(x: chipPoint.x, y: chipPoint.y - 48)
         container.position = startPoint
         container.alpha = 0
+        container.setScale(0.55)
         gameCamera.addChild(container)
 
+        let popIn = SKAction.group([
+            SKAction.fadeAlpha(to: 1.0, duration: 0.12),
+            SKAction.scale(to: 1.15, duration: 0.14)
+        ])
+        popIn.timingMode = .easeOut
+        let settle = SKAction.scale(to: 1.0, duration: 0.10)
+        settle.timingMode = .easeInEaseOut
+        let drift = SKAction.move(to: endPoint, duration: 0.50)
+        drift.timingMode = .easeIn
+
         container.run(SKAction.sequence([
+            popIn,
+            settle,
+            SKAction.wait(forDuration: 0.22),
             SKAction.group([
-                SKAction.fadeAlpha(to: 1.0, duration: 0.16),
-                SKAction.move(to: endPoint, duration: 0.55)
+                drift,
+                SKAction.fadeOut(withDuration: 0.42)
             ]),
-            SKAction.wait(forDuration: 0.25),
-            SKAction.fadeOut(withDuration: 0.28),
             SKAction.removeFromParent()
         ]))
     }

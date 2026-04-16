@@ -74,7 +74,8 @@ final class InputHandler: NSObject, UIGestureRecognizerDelegate {
         case .changed:
             // Camera scale is *inverse* of zoom — bigger scale = zoomed out.
             let target = pinchStartScale / gr.scale
-            let clamped = max(1 / Constants.maxZoom, min(1 / Constants.minZoom, target))
+            let maxScale = effectiveMaxCameraScale() // = 1 / effective minZoom
+            let clamped = max(1 / Constants.maxZoom, min(maxScale, target))
             camera.setScale(clamped)
             clampCameraToMap()
             emitMoved()
@@ -83,12 +84,32 @@ final class InputHandler: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
+    /// Zoom floor chosen so the viewport never exceeds the playable map — a
+    /// too-wide view at min zoom leaves an empty border around the grid, which
+    /// the player reads as scroll overflow.
+    private func effectiveMaxCameraScale() -> CGFloat {
+        guard let view else { return 1 / Constants.minZoom }
+        let mapW = CGFloat(Constants.gridCols) * Constants.tileSize
+        let mapH = CGFloat(Constants.gridRows) * Constants.tileSize
+        let maxScaleFromMap = min(mapW / max(1, view.bounds.width),
+                                  mapH / max(1, view.bounds.height))
+        return min(1 / Constants.minZoom, maxScaleFromMap)
+    }
+
     /// Keep the camera looking at the playfield — no more than a half-screen of
     /// margin past the map edge, so the user never sees a huge blue border.
     /// When the map is smaller than the visible area at the current zoom, we
     /// lock the camera to the map center instead of letting the tiny map slide.
     private func clampCameraToMap() {
         guard let camera, let view else { return }
+        // Re-assert the dynamic zoom floor first: if the user rotated the
+        // device or the view was resized, the camera may now be scaled past
+        // the map — snap it back before clamping the position.
+        let maxScale = effectiveMaxCameraScale()
+        if camera.xScale > maxScale {
+            camera.setScale(maxScale)
+        }
+
         let tileSize = Constants.tileSize
         let mapW = CGFloat(Constants.gridCols) * tileSize
         let mapH = CGFloat(Constants.gridRows) * tileSize
@@ -97,26 +118,26 @@ final class InputHandler: NSObject, UIGestureRecognizerDelegate {
         let scale = camera.xScale
         let viewW = view.bounds.width * scale
         let viewH = view.bounds.height * scale
-        // Allowed pan range so the map edge doesn't leave more than ~20% of
-        // the view as empty background.
-        let slackX = viewW * 0.2
-        let slackY = viewH * 0.2
 
-        let minX = mapW / 2 - (mapW / 2 + slackX) + viewW / 2 - slackX
-        let maxX = mapW / 2 + (mapW / 2 + slackX) - viewW / 2 + slackX
-        if viewW >= mapW + 2 * slackX {
+        // Only a two-tile nudge past the map edge — enough to frame corner
+        // buildings nicely, not enough to scroll into empty space.
+        let slack = tileSize * 2
+
+        if viewW >= mapW {
             camera.position.x = center.x
         } else {
+            let minX = viewW / 2 - slack
+            let maxX = mapW - viewW / 2 + slack
             camera.position.x = min(max(camera.position.x, minX), maxX)
         }
 
         let midY = center.y
-        if viewH >= mapH + 2 * slackY {
+        if viewH >= mapH {
             camera.position.y = midY
         } else {
-            let halfMapPlus = mapH / 2 + slackY
-            let topY = midY + halfMapPlus - viewH / 2
-            let botY = midY - halfMapPlus + viewH / 2
+            let halfMap = mapH / 2
+            let topY = midY + halfMap - viewH / 2 + slack
+            let botY = midY - halfMap + viewH / 2 - slack
             camera.position.y = min(max(camera.position.y, botY), topY)
         }
     }
