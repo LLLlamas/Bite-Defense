@@ -202,7 +202,9 @@ final class Building: SKNode {
     }
 
     func setSelected(_ selected: Bool) {
+        let existing = childNode(withName: "selectionOutline")
         if selected {
+            guard existing == nil else { return }
             let def = BuildingConfig.def(for: type)
             let size = def.worldSize
             let outline = SKShapeNode(rect: CGRect(x: -1, y: -size.height - 1,
@@ -216,7 +218,7 @@ final class Building: SKNode {
             outline.zPosition = 20
             addChild(outline)
         } else {
-            childNode(withName: "selectionOutline")?.removeFromParent()
+            existing?.removeFromParent()
         }
     }
 

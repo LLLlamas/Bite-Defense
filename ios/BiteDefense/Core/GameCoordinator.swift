@@ -134,6 +134,12 @@ final class GameCoordinator {
                                           payWith: resource)
         if case .success(let model) = result {
             placement = nil
+            // Auto-dismiss the shop highlight once the needed building starts
+            // being built (e.g. Fort highlight clears when a Fort is placed).
+            if shopHighlightedType == model.type {
+                shopHighlightTask?.cancel()
+                shopHighlightedType = nil
+            }
             return model
         }
         return nil
@@ -314,6 +320,8 @@ final class GameCoordinator {
             return Set(state.buildings
                 .filter { $0.type == .trainingCamp }
                 .map { $0.id })
+        case .needArcherTower:
+            return []
         }
     }
 
@@ -442,6 +450,7 @@ enum GuidanceMessage: Hashable, Identifiable {
     case needHQ
     case hqStillBuilding
     case needTroops
+    case needArcherTower
 
     var id: Self { self }
 
@@ -450,6 +459,7 @@ enum GuidanceMessage: Hashable, Identifiable {
         case .needHQ: return "Place your Dog HQ first"
         case .hqStillBuilding: return "Dog HQ still under construction"
         case .needTroops: return "You need dog troops to fight"
+        case .needArcherTower: return "Build an Archer Tower first"
         }
     }
 
@@ -461,6 +471,8 @@ enum GuidanceMessage: Hashable, Identifiable {
             return "Wait for the Dog HQ to finish construction, or spend premium bones to speed it up from the building card."
         case .needTroops:
             return "You need at least one trained dog in a Fort before a wave can start. Tap a Training Camp to train troops — they'll garrison in the Fort automatically."
+        case .needArcherTower:
+            return "Archer Dogs need an Archer Tower before they can be trained. Open the Store and place an Archer Tower — it unlocks ranged troops for your army."
         }
     }
 }

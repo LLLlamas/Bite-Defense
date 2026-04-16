@@ -238,6 +238,11 @@ final class GameState {
         troops.contains { !$0.isDead }
     }
 
+    /// True if the player owns at least one Archer Tower (built or building).
+    var hasArcherTower: Bool {
+        buildings.contains { $0.type == .archerTower }
+    }
+
     // MARK: - Premium bones (soft-currency bridge)
     //
     // Conversion rates — direct port of `GameState.js`:

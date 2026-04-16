@@ -64,6 +64,7 @@ final class GameScene: SKScene {
 
         refreshPlacementPreview()
         refreshPendingMovePreview()
+        refreshSelection()
         syncUnitPositions()
         syncBuildingProgress()
         syncBuildingHighlights()
@@ -398,11 +399,11 @@ final class GameScene: SKScene {
     /// Since the indicator is a child of the camera, this always renders at
     /// the matching screen corner with a small inset.
     private func screenCornerPosition(_ corner: Int) -> CGPoint {
-        // Asymmetric insets so the indicator sits inside the playfield strip
-        // and never overlaps the top HUD or the bottom toolbar.
-        let sideInset: CGFloat = 46
-        let topInset: CGFloat = 90
-        let bottomInset: CGFloat = 120
+        // Asymmetric insets so the indicator sits well inside the playfield
+        // strip — clear of the top HUD bar and bottom store/control toolbar.
+        let sideInset: CGFloat = 50
+        let topInset: CGFloat = 130
+        let bottomInset: CGFloat = 170
         let w = size.width
         let h = size.height
         let halfW = w / 2 - sideInset
@@ -440,7 +441,7 @@ final class GameScene: SKScene {
     }
 
     private func refreshSelection() {
-        let selectedId = coordinator?.selectedBuildingId
+        let selectedId = coordinator?.selectedBuildingId ?? coordinator?.trainingPanelCampId
         for (id, node) in buildings {
             node.setSelected(id == selectedId)
         }

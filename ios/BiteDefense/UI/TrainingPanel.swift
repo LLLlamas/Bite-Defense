@@ -194,14 +194,19 @@ struct TrainingPanel: View {
         let canAfford = coordinator.state.canAfford(cost, in: def.trainResource)
         let hasFortSpace = coordinator.state.fortAvailableSlots >= level
         let levelLocked = coordinator.state.playerLevel < def.unlockLevel
+        // Archer Dogs require an Archer Tower to exist before training.
+        let needsArcherTower = (type == .archer && !coordinator.state.hasArcherTower)
         // We intentionally leave the button enabled when the *only* blocker
-        // is fort space — the tap then routes the player to the Store's Fort
-        // card via `GameCoordinator.highlightStoreItem(.fort)`.
+        // is fort space or a missing dependency building — the tap routes the
+        // player to the Store highlight or a guidance card instead.
         let disabled = levelLocked || queueFull || !canAfford
 
         VStack(spacing: 4) {
             Button {
-                if !hasFortSpace {
+                if needsArcherTower {
+                    coordinator.guidanceMessage = .needArcherTower
+                    coordinator.highlightStoreItem(.archerTower)
+                } else if !hasFortSpace {
                     coordinator.closeTrainingPanel()
                     coordinator.highlightStoreItem(.fort)
                 } else {
@@ -211,7 +216,7 @@ struct TrainingPanel: View {
                 VStack(spacing: 3) {
                     ZStack {
                         Text(def.emoji).font(.title2)
-                        if levelLocked {
+                        if levelLocked || needsArcherTower {
                             Image(systemName: "lock.fill")
                                 .font(.caption2.bold())
                                 .foregroundStyle(.yellow)
@@ -222,6 +227,10 @@ struct TrainingPanel: View {
                         .foregroundStyle(.white)
                     if levelLocked {
                         Text("Unlocks Lv \(def.unlockLevel)")
+                            .font(.system(size: 9, design: .monospaced).bold())
+                            .foregroundStyle(.yellow)
+                    } else if needsArcherTower {
+                        Text("Needs 🏹 Tower")
                             .font(.system(size: 9, design: .monospaced).bold())
                             .foregroundStyle(.yellow)
                     } else {
@@ -243,13 +252,13 @@ struct TrainingPanel: View {
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(Color.white.opacity(0.2), lineWidth: 1)
                 )
-                .opacity(disabled ? 0.4 : 1.0)
+                .opacity(disabled || needsArcherTower ? 0.4 : 1.0)
             }
             .buttonStyle(.plain)
-            .disabled(disabled)
+            .disabled(disabled && !needsArcherTower)
 
             // Top-off button: shown when the only blocker is resources.
-            if !levelLocked && !canAfford && !queueFull && hasFortSpace {
+            if !levelLocked && !needsArcherTower && !canAfford && !queueFull && hasFortSpace {
                 topOffButton(cost: cost, resource: def.trainResource)
             }
         }
