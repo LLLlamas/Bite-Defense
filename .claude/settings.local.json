@@ -12,7 +12,8 @@
       "Bash(mkdir -p \"/tmp/bite_extract\")",
       "Read(//tmp/**)",
       "Bash(unzip -o \"C:/Users/fines/Downloads/Bite Defense.zip\")",
-      "Bash(where swift *)"
+      "Bash(where swift *)",
+      "Bash(where gh *)"
     ]
   }
 }

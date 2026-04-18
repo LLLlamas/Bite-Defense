@@ -269,12 +269,16 @@ struct TrainingPanel: View {
     /// covers coins too, for the idle Collector Dog (pays in dog coins).
     @ViewBuilder
     private func topOffButton(cost: Int, resource: ResourceKind) -> some View {
-        let have: Int
-        switch resource {
-        case .water:    have = coordinator.state.water
-        case .milk:     have = coordinator.state.milk
-        case .dogCoins: have = coordinator.state.dogCoins
-        }
+        // Inline the resource→balance lookup via a closure so @ViewBuilder
+        // sees a single `let` (not a multi-statement switch — ViewBuilder
+        // only accepts View-valued statements at the top level).
+        let have: Int = {
+            switch resource {
+            case .water:    return coordinator.state.water
+            case .milk:     return coordinator.state.milk
+            case .dogCoins: return coordinator.state.dogCoins
+            }
+        }()
         let short = max(0, cost - have)
         let bones = coordinator.state.bonesToCover(shortfall: short, resource: resource)
         let canAffordBones = coordinator.state.canAffordPremium(bones)

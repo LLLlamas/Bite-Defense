@@ -130,13 +130,17 @@ final class GameCoordinator {
 
     /// Kick off a background auto-save every 30 seconds so unexpected
     /// terminations lose at most half a minute of progress.
+    ///
+    /// Uses a main-actor `Task` (not `Task.detached`) so the capture of
+    /// `self` stays on the main actor — satisfies Swift 6's concurrent-
+    /// capture checks without an explicit strong hop inside the loop.
     private func startAutoSaveLoop() {
         autoSaveTask?.cancel()
-        autoSaveTask = Task.detached { [weak self] in
+        autoSaveTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 30 * 1_000_000_000)
                 guard !Task.isCancelled else { return }
-                await MainActor.run { self?.saveNow() }
+                self?.saveNow()
             }
         }
     }
