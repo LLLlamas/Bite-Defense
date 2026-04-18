@@ -34,19 +34,18 @@ final class Building: SKNode {
         sprite.position = .zero
         self.bodySprite = sprite
 
-        let iconSize = max(14, floor(min(size.width, size.height) * 0.55))
-        // Force emoji presentation (VS16) so glyphs like ⚔️ / 🛡️ always
-        // render in color even on monochrome-text fallback fonts.
+        // The baked sprite already carries the type emblem (paw, swords, shield,
+        // milk bottle, arrows, etc.), so the emoji label is only shown while
+        // construction is in progress — we reveal it from `updateBuildProgress`.
         let emojiText = def.emoji.hasSuffix("\u{FE0F}")
             ? def.emoji : def.emoji + "\u{FE0F}"
         let label = SKLabelNode(text: emojiText)
         label.fontName = "AppleColorEmoji"
-        label.fontSize = iconSize
+        label.fontSize = max(14, floor(min(size.width, size.height) * 0.4))
         label.horizontalAlignmentMode = .center
         label.verticalAlignmentMode = .center
         label.position = CGPoint(x: size.width / 2, y: -size.height / 2)
-        // Keep the icon on top of the construction overlay so Fort / HQ
-        // glyphs stay visible while the building is being built.
+        label.alpha = 0
         label.zPosition = 16
         self.emojiLabel = label
 
@@ -118,9 +117,13 @@ final class Building: SKNode {
             buildBar = nil
             buildLabel = nil
             bodySprite.alpha = 1.0
+            emojiLabel.alpha = 0  // re-hide once construction finishes
             return
         }
         bodySprite.alpha = 0.55
+        // Fade the type emoji in while the baked art is dimmed, so players can
+        // still tell what's being built from a distance.
+        emojiLabel.alpha = 1.0
         let size = bodySprite.size
         if buildOverlay == nil {
             let overlay = SKNode()

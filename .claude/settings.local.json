@@ -8,7 +8,11 @@
       "mcp__Claude_in_Chrome__find",
       "WebFetch(domain:github.com)",
       "mcp__Claude_Preview__preview_start",
-      "Bash(xcodebuild -project ios/BiteDefense.xcodeproj -scheme BiteDefense -destination 'generic/platform=iOS' -quiet build)"
+      "Bash(xcodebuild -project ios/BiteDefense.xcodeproj -scheme BiteDefense -destination 'generic/platform=iOS' -quiet build)",
+      "Bash(mkdir -p \"/tmp/bite_extract\")",
+      "Read(//tmp/**)",
+      "Bash(unzip -o \"C:/Users/fines/Downloads/Bite Defense.zip\")",
+      "Bash(where swift *)"
     ]
   }
 }

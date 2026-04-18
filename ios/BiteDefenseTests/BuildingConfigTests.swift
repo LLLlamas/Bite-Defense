@@ -17,7 +17,7 @@ final class BuildingConfigTests: XCTestCase {
         XCTAssertEqual(BuildingConfig.def(for: .archerTower).tileWidth, 1)
         XCTAssertEqual(BuildingConfig.def(for: .archerTower).tileHeight, 2)
         XCTAssertEqual(BuildingConfig.def(for: .waterWell).tileWidth, 2)
-        XCTAssertEqual(BuildingConfig.def(for: .waterWell).tileHeight, 1)
+        XCTAssertEqual(BuildingConfig.def(for: .waterWell).tileHeight, 2)
     }
 
     func testDogHQIsUnique() {

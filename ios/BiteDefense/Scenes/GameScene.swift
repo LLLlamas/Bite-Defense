@@ -101,15 +101,17 @@ final class GameScene: SKScene {
             _ = amount
         case .enemySpawned(let enemy):
             spawnEnemyNode(for: enemy)
-        case .enemyDamaged(_, let amount, let col, let row):
+        case .enemyDamaged(let id, let amount, let col, let row):
             spawnDamageNumber(amount: amount, col: col, row: row, color: .yellow)
+            enemies[id]?.playHitFlash()
         case .enemyDied(let id):
             if let node = enemies[id] {
                 enemies.removeValue(forKey: id)
                 node.playDeathAnimation()
             }
-        case .troopDamaged(_, let amount, let col, let row):
+        case .troopDamaged(let id, let amount, let col, let row):
             spawnDamageNumber(amount: amount, col: col, row: row, color: .red)
+            troops[id]?.playHitFlash()
         case .troopDied(let id):
             troops[id]?.run(SKAction.sequence([
                 SKAction.fadeOut(withDuration: 0.3),
@@ -189,12 +191,14 @@ final class GameScene: SKScene {
         let node = TroopNode(model: model)
         addChild(node)
         troops[model.id] = node
+        node.playDeployAnimation()
     }
 
     private func spawnEnemyNode(for model: EnemyModel) {
         let node = EnemyNode(model: model)
         addChild(node)
         enemies[model.id] = node
+        node.playSpawnAnimation()
     }
 
     private func spawnDamageNumber(amount: Int, col: Double, row: Double, color: SKColor) {
