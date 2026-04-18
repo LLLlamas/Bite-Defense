@@ -10,9 +10,11 @@ import SwiftUI
 struct IntroCard: View {
     @Bindable var coordinator: GameCoordinator
 
-    /// Which step the UI is currently showing. We derive the "suggested"
-    /// step from game state on load, but the player can Back/Next freely
-    /// through the whole tutorial.
+    /// Which step the UI is currently showing. Always starts at `.welcome`
+    /// on a fresh open — we deliberately do NOT snap forward via an
+    /// `onAppear` heuristic, because the resulting "welcome flashes, then
+    /// jumps to step 2 on its own" effect was disorienting. Players drive
+    /// the step counter with Next / Back, period.
     @State private var step: IntroStep = .welcome
 
     var body: some View {
@@ -31,10 +33,6 @@ struct IntroCard: View {
         )
         .pulsingGlow(color: .yellow, min: 6, max: 18, duration: 1.4)
         .padding(.horizontal, 20)
-        .onAppear {
-            // Snap to the first unfinished step when reopened.
-            step = IntroStep.suggested(for: coordinator.state)
-        }
     }
 
     // MARK: - Header
@@ -326,23 +324,10 @@ enum IntroStep: CaseIterable {
         }
     }
 
-    /// Suggested starting step based on what the player already has placed.
-    /// Uses "next thing you're missing" logic so returning players don't see
-    /// re-explanations of steps they've already completed.
-    static func suggested(for state: GameState) -> IntroStep {
-        if state.hq == nil { return .welcome }
-        if state.buildings.contains(where: { $0.type == .waterWell }) == false
-            || state.buildings.contains(where: { $0.type == .milkFarm }) == false {
-            return .wells
-        }
-        if state.buildings.contains(where: { $0.type == .trainingCamp }) == false {
-            return .training
-        }
-        if state.buildings.contains(where: { $0.type == .fort }) == false {
-            return .fort
-        }
-        return .cats
-    }
+    // Previously had a `suggested(for:)` helper that chose a starting step
+    // based on game state; removed because the "flash welcome then hop
+    // forward" transition was confusing on cold open. Players now always
+    // start at .welcome and walk through in order.
 }
 
 // MARK: - Misc overlays (unchanged)

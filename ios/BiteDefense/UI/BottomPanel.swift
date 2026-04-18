@@ -97,6 +97,34 @@ struct SettingsPanel: View {
             }
             .tint(.orange)
 
+            Divider().background(.white.opacity(0.2))
+
+            // Battle speed — same control that lives in the battle bar,
+            // mirrored here so the player can see / change it without
+            // waiting for a wave to start. "Why is everything fast?" answer.
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Battle Speed")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.white)
+                    Text(battleSpeedBlurb)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+                Spacer()
+                Button {
+                    coordinator.cycleBattleSpeed()
+                } label: {
+                    Text(speedLabel)
+                        .font(.subheadline.bold())
+                        .frame(width: 60, height: 32)
+                        .background(Color.orange.opacity(0.8),
+                                    in: RoundedRectangle(cornerRadius: 8))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+            }
+
             // Manual trigger — skips the auto-wave countdown.
             Button {
                 coordinator.requestStartWave()
@@ -146,10 +174,33 @@ struct SettingsPanel: View {
 
     private var waveIntervalSummary: String {
         let secs = Int(coordinator.state.autoWaveIntervalSeconds)
-        let mins = secs / 60
+        let label: String
+        if secs >= 60 {
+            let mins = secs / 60
+            let rem = secs % 60
+            label = rem == 0 ? "\(mins)m" : "\(mins)m \(rem)s"
+        } else {
+            label = "\(secs)s"
+        }
         return coordinator.state.autoWaveEnabled
-            ? "Next wave every \(mins) min at this difficulty"
+            ? "Next wave every \(label) at this difficulty"
             : "Auto-waves paused — use the manual trigger"
+    }
+
+    private var speedLabel: String {
+        switch coordinator.battleSpeed {
+        case 4.0: return "4×"
+        case 2.0: return "2×"
+        default:  return "1×"
+        }
+    }
+
+    private var battleSpeedBlurb: String {
+        switch coordinator.battleSpeed {
+        case 4.0: return "Battles tick 4× faster — quick debug / replay pace"
+        case 2.0: return "Battles tick 2× faster — lightly sped up"
+        default:  return "Normal pace — realtime combat"
+        }
     }
 
     @ViewBuilder
@@ -315,96 +366,107 @@ struct BattleBar: View {
     }
 }
 
-/// Post-wave success / failure card.
+/// Post-wave summary card. Idle / auto-battler model — there is no
+/// "Continue" or "Go Home" action; the next wave auto-starts on a timer.
+/// The card is purely informational: what came in, what went out, and
+/// how many dogs / cats fell. Auto-dismisses after a few seconds so the
+/// player can get back to placing things, but they can tap Dismiss early.
 struct WaveResultCard: View {
     @Bindable var coordinator: GameCoordinator
 
     var body: some View {
-        let phase = coordinator.state.phase
-        if phase == .waveComplete, let reward = coordinator.state.lastWaveReward {
-            successCard(reward: reward)
-        } else if phase == .waveFailed, let info = coordinator.state.lastWaveFailInfo {
-            failureCard(waterStolen: info.waterStolen, milkStolen: info.milkStolen)
+        if let summary = coordinator.state.lastWaveResult {
+            card(for: summary)
         }
     }
 
     @ViewBuilder
-    private func successCard(reward: WaveReward) -> some View {
-        VStack(spacing: 12) {
-            Text("🏆 Wave \(coordinator.state.currentWave) Cleared!")
-                .font(.title3.bold())
-                .foregroundStyle(.yellow)
-            HStack(spacing: 20) {
-                stat(icon: AnyView(WaterDropIcon(size: 22)), value: reward.water)
-                stat(icon: AnyView(MilkBottleIcon(size: 22)), value: reward.milk)
-                stat(icon: AnyView(DogCoinIcon(size: 22)),    value: reward.dogCoins)
-                VStack(spacing: 2) {
-                    Image(systemName: "star.fill").foregroundStyle(.yellow)
-                    Text("+\(reward.xp)")
-                        .font(.caption.monospacedDigit().bold())
-                        .foregroundStyle(.green)
+    private func card(for summary: WaveResultSummary) -> some View {
+        let accent: Color = summary.isVictory ? .green : .red
+        VStack(spacing: 10) {
+            Text(summary.isVictory ? "Wave Summary" : "Cats Got Through")
+                .font(.headline)
+                .foregroundStyle(accent)
+
+            // Resource deltas.
+            HStack(spacing: 22) {
+                if summary.waterDelta != 0 {
+                    deltaStat(icon: AnyView(WaterDropIcon(size: 22)),
+                              value: summary.waterDelta)
+                }
+                if summary.milkDelta != 0 {
+                    deltaStat(icon: AnyView(MilkBottleIcon(size: 22)),
+                              value: summary.milkDelta)
+                }
+                if summary.coinsGained > 0 {
+                    deltaStat(icon: AnyView(DogCoinIcon(size: 22)),
+                              value: summary.coinsGained)
+                }
+                if summary.xpGained > 0 {
+                    VStack(spacing: 2) {
+                        Image(systemName: "star.fill").foregroundStyle(.yellow)
+                        Text("+\(summary.xpGained)")
+                            .font(.caption.monospacedDigit().bold())
+                            .foregroundStyle(.green)
+                    }
                 }
             }
-            if coordinator.state.waveStreak > 1 {
-                Text("Streak: \(coordinator.state.waveStreak) 🔥")
-                    .font(.caption.bold())
-                    .foregroundStyle(.orange)
+
+            // Combat tally — dogs lost + cats defeated. Always visible even
+            // at zero so the card reads like a consistent mini-report.
+            HStack(spacing: 22) {
+                combatTally(symbol: "pawprint.fill",
+                            color: .orange,
+                            label: "Cats defeated",
+                            value: summary.catsDefeated)
+                combatTally(symbol: "heart.slash.fill",
+                            color: .red,
+                            label: "Dogs lost",
+                            value: summary.troopsLost)
             }
-            HStack(spacing: 10) {
-                Button("Go Home") { coordinator.goHome() }
-                    .buttonStyle(.bordered).tint(.gray)
-                Button {
-                    coordinator.dismissWaveResult()
-                    coordinator.requestStartWave()
-                } label: {
-                    Label("Continue (Streak \(coordinator.state.waveStreak + 1))",
-                          systemImage: "forward.fill")
-                }
-                .buttonStyle(.borderedProminent).tint(.green)
+
+            Button("Dismiss") {
+                coordinator.dismissWaveResult()
             }
+            .buttonStyle(.bordered)
+            .tint(accent)
         }
-        .padding(16)
+        .padding(14)
         .background(.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(.yellow.opacity(0.55), lineWidth: 1.5)
+                .stroke(accent.opacity(0.55), lineWidth: 1.5)
         )
-        .pulsingGlow(color: .green, min: 6, max: 22, duration: 1.2)
         .padding(.horizontal, 20)
-    }
-
-    @ViewBuilder
-    private func failureCard(waterStolen: Int, milkStolen: Int) -> some View {
-        VStack(spacing: 12) {
-            Text("💀 Wave Failed")
-                .font(.title3.bold())
-                .foregroundStyle(.red)
-            Text("The cats broke through and stole:")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.8))
-            HStack(spacing: 20) {
-                stat(icon: AnyView(WaterDropIcon(size: 22)), value: -waterStolen)
-                stat(icon: AnyView(MilkBottleIcon(size: 22)), value: -milkStolen)
+        // Auto-close after a short read window so the toolbar comes back.
+        // Player can still tap Dismiss for an early close.
+        .task(id: summary) {
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            if coordinator.state.lastWaveResult == summary {
+                coordinator.dismissWaveResult()
             }
-            Button("Retreat to Base") { coordinator.dismissWaveResult() }
-                .buttonStyle(.borderedProminent).tint(.red)
         }
-        .padding(16)
-        .background(.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(.red.opacity(0.5), lineWidth: 1.5)
-        )
-        .pulsingGlow(color: .red, min: 4, max: 16, duration: 1.0)
-        .padding(.horizontal, 20)
     }
 
-    private func stat(icon: AnyView, value: Int) -> some View {
+    private func deltaStat(icon: AnyView, value: Int) -> some View {
         VStack(spacing: 2) {
             icon
             Text("\(value >= 0 ? "+" : "")\(value)")
                 .font(.caption.monospacedDigit().bold())
                 .foregroundStyle(value >= 0 ? .green : .red)
+        }
+    }
+
+    private func combatTally(symbol: String, color: Color,
+                              label: String, value: Int) -> some View {
+        VStack(spacing: 2) {
+            Image(systemName: symbol).foregroundStyle(color)
+            Text("\(value)")
+                .font(.caption.monospacedDigit().bold())
+                .foregroundStyle(.white)
+            Text(label)
+                .font(.system(size: 9, design: .rounded))
+                .foregroundStyle(.white.opacity(0.65))
         }
     }
 }

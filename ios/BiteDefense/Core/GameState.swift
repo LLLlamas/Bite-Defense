@@ -65,18 +65,19 @@ final class GameState {
     /// first-launch offline catch-up is a no-op until we've written once.
     var lastSavedAt: Date? = nil
 
-    /// Seconds between auto-waves at the current **difficulty** (not HQ
-    /// level — cats hit harder on harder difficulties, simpler model):
-    ///   • Difficulty 1 (Easy):      5 min
-    ///   • Difficulty 2:              4 min
-    ///   • Difficulty 3:              3 min
-    ///   • Difficulty 4:              2 min
-    ///   • Difficulty 5 (Legendary): 1 min
+    /// Seconds between auto-waves at the current **difficulty**. Aggressive
+    /// cadence for playtesting — we'll lengthen back to 1–5 min later once
+    /// the core loop feels right.
+    ///   • Difficulty 1 (Easy):      60s
+    ///   • Difficulty 2:             45s
+    ///   • Difficulty 3:             30s
+    ///   • Difficulty 4:             20s
+    ///   • Difficulty 5 (Legendary): 10s
     /// Player can skip the timer with "Start Wave Now" from Settings.
     var autoWaveIntervalSeconds: Double {
         let d = min(max(selectedDifficulty, 1), 5)
-        // 5 min at D1 → 1 min at D5, minus 1 min per step.
-        return Double(6 - d) * 60
+        let table: [Double] = [60, 45, 30, 20, 10]
+        return table[d - 1]
     }
 
     /// Transient UI: which troop is selected for moving (during PRE_BATTLE).
@@ -84,6 +85,10 @@ final class GameState {
     /// Last wave-complete / wave-failed summary for the result card.
     var lastWaveReward: WaveReward? = nil
     var lastWaveFailInfo: (waterStolen: Int, milkStolen: Int)? = nil
+    /// Unified wave result — shown by the summary card after any wave ends,
+    /// and also written to disk so the player sees "what happened" the next
+    /// time they foreground the app if a wave fired while away.
+    var lastWaveResult: WaveResultSummary? = nil
 
     // MARK: - ID mints
     private var nextBuildingId: Int = 1
@@ -353,6 +358,22 @@ final class GameState {
         let choose: ResourceKind = waterShort <= milkShort ? .water : .milk
         return topUpShortfall(needed: needed, resource: choose)
     }
+}
+
+/// Unified "what just happened" summary for the post-wave card. Replaces
+/// the split `WaveReward` / fail-info tuple — both win and loss paths
+/// populate the same struct so the UI can render one consistent card.
+struct WaveResultSummary: Equatable {
+    let isVictory: Bool
+    let waveNumber: Int
+    /// Positive = resources ADDED to the stockpile (wave reward + dead-cat
+    /// drops). Negative = resources stolen by cats.
+    let waterDelta: Int
+    let milkDelta: Int
+    let coinsGained: Int
+    let xpGained: Int
+    let troopsLost: Int
+    let catsDefeated: Int
 }
 
 enum ResourceKind: String, CaseIterable, Hashable {

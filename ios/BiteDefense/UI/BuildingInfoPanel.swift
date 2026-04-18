@@ -36,6 +36,13 @@ struct BuildingInfoPanel: View {
                                 in: Capsule())
             }
 
+            // One-line description — answers "what does this building do?"
+            // without making the player open a separate help panel.
+            Text(def.description)
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.8))
+                .fixedSize(horizontal: false, vertical: true)
+
             if model.isBuilding {
                 buildingStripe(model: model)
             }

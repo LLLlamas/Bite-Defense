@@ -19,6 +19,11 @@ final class WaveSystem {
     private var pending: [EnemySpawn] = []
     private var spawnTimer: Double = 0
     private var waveData: WaveData?
+    /// Snapshotted at wave-start so we can compute "troops lost" and "cats
+    /// defeated" deltas at wave end without needing per-tick bookkeeping.
+    private var troopCountAtWaveStart: Int = 0
+    private var catsDefeatedThisWave: Int = 0
+    private var waveTotalSpawnCount: Int = 0
 
     init(state: GameState) {
         self.state = state
@@ -183,6 +188,10 @@ final class WaveSystem {
         waveData = data
         pending = data.enemies.sorted { $0.spawnDelay < $1.spawnDelay }
         spawnTimer = 0
+        // Snapshot for the result card.
+        troopCountAtWaveStart = state.troops.filter { !$0.isDead }.count
+        catsDefeatedThisWave = 0
+        waveTotalSpawnCount = data.enemies.count
         EventBus.shared.send(.waveStarted(wave: state.currentWave,
                                            corner: state.waveCorner ?? 0))
     }
@@ -243,6 +252,19 @@ final class WaveSystem {
             state.maxDifficultyUnlocked = min(5, state.selectedDifficulty + 1)
         }
 
+        let troopsAlive = state.troops.filter { !$0.isDead }.count
+        let troopsLost = max(0, troopCountAtWaveStart - troopsAlive)
+        state.lastWaveResult = WaveResultSummary(
+            isVictory: true,
+            waveNumber: state.currentWave,
+            waterDelta: reward.water - waterFeed,
+            milkDelta: reward.milk - milkFeed,
+            coinsGained: reward.dogCoins,
+            xpGained: reward.xp,
+            troopsLost: troopsLost,
+            catsDefeated: waveTotalSpawnCount
+        )
+
         // Troops stay where they fought — no more "garrison everyone". Clear
         // dead ones only.
         state.troops.removeAll { $0.isDead }
@@ -269,6 +291,11 @@ final class WaveSystem {
         state.water = max(0, state.water - waterStolen)
         state.milk  = max(0, state.milk  - milkStolen)
 
+        let remainingCats = state.enemies.filter { !$0.isDead }.count + pending.count
+        let catsDefeated = max(0, waveTotalSpawnCount - remainingCats)
+        let troopsAlive = state.troops.filter { !$0.isDead }.count
+        let troopsLost = max(0, troopCountAtWaveStart - troopsAlive)
+
         state.enemies.removeAll()
         pending.removeAll()
         state.waveStreak = 0
@@ -278,6 +305,16 @@ final class WaveSystem {
 
         state.lastWaveFailInfo = (waterStolen, milkStolen)
         state.lastWaveReward = nil
+        state.lastWaveResult = WaveResultSummary(
+            isVictory: false,
+            waveNumber: state.currentWave,
+            waterDelta: -waterStolen,
+            milkDelta: -milkStolen,
+            coinsGained: 0,
+            xpGained: 0,
+            troopsLost: troopsLost,
+            catsDefeated: catsDefeated
+        )
         state.phase = .waveFailed
         waveData = nil
         EventBus.shared.send(.waveFailed(waterStolen: waterStolen,
@@ -299,6 +336,10 @@ final class WaveSystem {
         state.waveCorner = nil
         state.lastWaveReward = nil
         state.lastWaveFailInfo = nil
+        // The unified summary owns the card's visibility — clear it so the
+        // auto-dismiss `.task(id:)` in WaveResultCard bounds to the new nil
+        // value and the overlay actually comes down.
+        state.lastWaveResult = nil
         EventBus.shared.send(.phaseChanged(phase: .building))
     }
 }

@@ -248,6 +248,12 @@ final class GameScene: SKScene {
         case water, milk, dogCoins, bones, level
     }
 
+    /// Toasts currently parked in the center stack (before flying to HUD).
+    /// We reflow their Y offsets whenever entries leave so they read as a
+    /// tidy vertical list instead of overlapping in a messy pile.
+    private var centerToastStack: [SKNode] = []
+    private let toastLaneHeight: CGFloat = 34
+
     private func floatColor(for kind: ResourceKind) -> SKColor {
         switch kind {
         case .water: return SKColor(red: 0.45, green: 0.75, blue: 1.0, alpha: 1)
@@ -310,49 +316,67 @@ final class GameScene: SKScene {
         bg.zPosition = -1
         container.addChild(bg)
 
-        // Idle-game toast choreography: pop in at scene CENTER at full scale,
-        // linger briefly so the player reads the delta, then drift up toward
-        // the matching HUD chip while fading. Matches "resource flies to
-        // its bank" feedback common in idle/merge games.
+        // Idle-game toast choreography:
+        //  1. Pop in at scene CENTER, stacked as a tidy vertical list
+        //     (newest on top — older ones are already flying out).
+        //  2. Hold long enough for the player to read the delta
+        //     (~0.9s — previously too short).
+        //  3. Reflow the remaining stack upward when this leaves.
+        //  4. Fly to the matching HUD chip while fading.
         let chipPoint = hudChipPoint(target)
-        let startPoint = CGPoint.zero   // scene center (camera-local)
-        container.position = startPoint
+        let laneIndex = centerToastStack.count
+        let stackY = -CGFloat(laneIndex) * toastLaneHeight
+        container.position = CGPoint(x: 0, y: stackY)
         container.alpha = 0
         container.setScale(0.4)
         gameCamera.addChild(container)
+        centerToastStack.append(container)
 
         let popIn = SKAction.group([
-            SKAction.fadeAlpha(to: 1.0, duration: 0.14),
-            SKAction.scale(to: 1.25, duration: 0.18)
+            SKAction.fadeAlpha(to: 1.0, duration: 0.18),
+            SKAction.scale(to: 1.25, duration: 0.22)
         ])
         popIn.timingMode = .easeOut
-        let settle = SKAction.scale(to: 1.0, duration: 0.12)
+        let settle = SKAction.scale(to: 1.0, duration: 0.14)
         settle.timingMode = .easeInEaseOut
 
-        // Two-step flight path: start center → nudge a tiny bit toward the
-        // chip at full opacity (so the eye catches the motion), then a
-        // longer fly-and-fade that arrives near the chip and vanishes.
-        let nudgeX = chipPoint.x * 0.18
-        let nudgeY = chipPoint.y * 0.25
-        let nudge = SKAction.move(to: CGPoint(x: nudgeX, y: nudgeY), duration: 0.30)
-        nudge.timingMode = .easeOut
+        // Hold time scales slightly with text length so number-heavy toasts
+        // stay long enough to read (e.g. "+350 water" vs "+3").
+        let holdSeconds = max(0.9, 0.9 + Double(text.count) * 0.03)
 
+        let leaveStack = SKAction.run { [weak self, weak container] in
+            guard let self, let node = container else { return }
+            self.centerToastStack.removeAll { $0 === node }
+            self.reflowCenterToastStack()
+        }
+
+        // Flight to the HUD chip — noticeably longer so the motion is
+        // readable and the chip-arrival animation feels earned.
         let flyEnd = CGPoint(x: chipPoint.x, y: chipPoint.y - 10)
-        let fly = SKAction.move(to: flyEnd, duration: 0.55)
+        let fly = SKAction.move(to: flyEnd, duration: 0.7)
         fly.timingMode = .easeIn
 
         container.run(SKAction.sequence([
             popIn,
             settle,
-            SKAction.wait(forDuration: 0.28),
-            nudge,
+            SKAction.wait(forDuration: holdSeconds),
+            leaveStack,
             SKAction.group([
                 fly,
-                SKAction.scale(to: 0.55, duration: 0.55),
-                SKAction.fadeOut(withDuration: 0.55)
+                SKAction.scale(to: 0.55, duration: 0.7),
+                SKAction.fadeOut(withDuration: 0.7)
             ]),
             SKAction.removeFromParent()
         ]))
+    }
+
+    /// Slide remaining center-stack toasts upward so the "oldest leaves →
+    /// newer ones fill the gap" motion reads as a tidy list shuffling.
+    private func reflowCenterToastStack() {
+        for (i, node) in centerToastStack.enumerated() {
+            let targetY = -CGFloat(i) * toastLaneHeight
+            node.run(SKAction.moveTo(y: targetY, duration: 0.22))
+        }
     }
 
     private func toastTarget(for kind: ResourceKind) -> ToastTarget {

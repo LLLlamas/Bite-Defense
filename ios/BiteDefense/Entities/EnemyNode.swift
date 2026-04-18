@@ -1,9 +1,9 @@
 import SpriteKit
 
 /// Visual representation of an enemy cat. Art is baked once by `UnitSprites`
-/// and shared across every spawn; per-enemy state (HP bar, idle bob) lives on
-/// this node. Falls back to the bundled `CatEnemy` asset — if present — for
-/// legacy builds, otherwise uses the procedural plush sprite.
+/// (the Claude-design plush cats) and shared across every spawn; per-enemy
+/// state (HP bar, idle bob) lives on this node. The old bundled `CatEnemy`
+/// angry-emote asset has been retired — we ship only the procedural sprites.
 final class EnemyNode: SKNode {
     let enemyId: Int
     let type: EnemyType
@@ -17,17 +17,7 @@ final class EnemyNode: SKNode {
         // Size: tanks read slightly larger than basic/fast cats.
         let side: CGFloat = model.type == .tankCat ? 36 : 28
 
-        let texture: SKTexture = {
-            #if canImport(UIKit)
-            if let image = UIImage(named: "CatEnemy"),
-               model.type == .basicCat {
-                // Use the shipped bitmap only for the basic cat so upgraded
-                // tank art (bigger body + collar) still renders correctly.
-                return SKTexture(image: image)
-            }
-            #endif
-            return UnitSprites.catTexture(for: model.type)
-        }()
+        let texture = UnitSprites.catTexture(for: model.type)
 
         let sprite = SKSpriteNode(texture: texture,
                                   size: CGSize(width: side, height: side))

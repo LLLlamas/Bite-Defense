@@ -127,17 +127,25 @@ final class Building: SKNode {
         let size = bodySprite.size
         if buildOverlay == nil {
             let overlay = SKNode()
-            overlay.position = CGPoint(x: size.width / 2, y: -size.height / 2)
+            // Sit the timer BELOW the building footprint (was at center).
+            // `bodySprite.anchorPoint = (0, 1)` means the building's bottom-
+            // right corner is at (width, -height); we center the overlay
+            // horizontally and drop it 14pt below the sprite bottom.
+            overlay.position = CGPoint(x: size.width / 2,
+                                        y: -size.height - 14)
             overlay.zPosition = 14
-            let bg = SKShapeNode(rect: CGRect(x: -size.width * 0.4, y: -4,
-                                              width: size.width * 0.8, height: 8),
+
+            // Progress bar, centered on the overlay.
+            let barWidth = size.width * 0.85
+            let bg = SKShapeNode(rect: CGRect(x: -barWidth / 2, y: -4,
+                                              width: barWidth, height: 8),
                                  cornerRadius: 3)
-            bg.fillColor = SKColor.black.withAlphaComponent(0.65)
+            bg.fillColor = SKColor.black.withAlphaComponent(0.75)
             bg.strokeColor = SKColor.white.withAlphaComponent(0.3)
             bg.lineWidth = 1
             overlay.addChild(bg)
 
-            let bar = SKShapeNode(rect: CGRect(x: -size.width * 0.4, y: -4,
+            let bar = SKShapeNode(rect: CGRect(x: -barWidth / 2, y: -4,
                                                width: 1, height: 8),
                                   cornerRadius: 2)
             bar.fillColor = SKColor(red: 1.0, green: 0.65, blue: 0.25, alpha: 0.95)
@@ -145,12 +153,15 @@ final class Building: SKNode {
             overlay.addChild(bar)
             self.buildBar = bar
 
+            // Time-remaining readout underneath the bar so the number sits
+            // further from the building art.
             let label = SKLabelNode(text: "🔨")
-            label.fontName = "AppleColorEmoji"
-            label.fontSize = 14
+            label.fontName = "AvenirNext-Bold"
+            label.fontSize = 11
+            label.fontColor = .white
             label.verticalAlignmentMode = .center
             label.horizontalAlignmentMode = .center
-            label.position = CGPoint(x: 0, y: 16)
+            label.position = CGPoint(x: 0, y: -16)
             overlay.addChild(label)
             self.buildLabel = label
 
@@ -158,9 +169,10 @@ final class Building: SKNode {
             self.buildOverlay = overlay
         }
         // Resize the fill bar.
+        let barWidth = size.width * 0.85
         let clamped = max(0.0, min(1.0, progress))
-        let w = max(1.0, size.width * 0.8 * clamped)
-        buildBar?.path = CGPath(roundedRect: CGRect(x: -size.width * 0.4, y: -4,
+        let w = max(1.0, barWidth * clamped)
+        buildBar?.path = CGPath(roundedRect: CGRect(x: -barWidth / 2, y: -4,
                                                     width: w, height: 8),
                                 cornerWidth: 2, cornerHeight: 2,
                                 transform: nil)
