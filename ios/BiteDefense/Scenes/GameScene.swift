@@ -310,34 +310,46 @@ final class GameScene: SKScene {
         bg.zPosition = -1
         container.addChild(bg)
 
-        // Pop in directly below the corresponding HUD chip, bounce once, then
-        // drift a touch further down and fade out. Keeps the player's eye on
-        // the chip whose value just changed.
+        // Idle-game toast choreography: pop in at scene CENTER at full scale,
+        // linger briefly so the player reads the delta, then drift up toward
+        // the matching HUD chip while fading. Matches "resource flies to
+        // its bank" feedback common in idle/merge games.
         let chipPoint = hudChipPoint(target)
-        let startPoint = CGPoint(x: chipPoint.x, y: chipPoint.y - 26)
-        let endPoint   = CGPoint(x: chipPoint.x, y: chipPoint.y - 48)
+        let startPoint = CGPoint.zero   // scene center (camera-local)
         container.position = startPoint
         container.alpha = 0
-        container.setScale(0.55)
+        container.setScale(0.4)
         gameCamera.addChild(container)
 
         let popIn = SKAction.group([
-            SKAction.fadeAlpha(to: 1.0, duration: 0.12),
-            SKAction.scale(to: 1.15, duration: 0.14)
+            SKAction.fadeAlpha(to: 1.0, duration: 0.14),
+            SKAction.scale(to: 1.25, duration: 0.18)
         ])
         popIn.timingMode = .easeOut
-        let settle = SKAction.scale(to: 1.0, duration: 0.10)
+        let settle = SKAction.scale(to: 1.0, duration: 0.12)
         settle.timingMode = .easeInEaseOut
-        let drift = SKAction.move(to: endPoint, duration: 0.50)
-        drift.timingMode = .easeIn
+
+        // Two-step flight path: start center → nudge a tiny bit toward the
+        // chip at full opacity (so the eye catches the motion), then a
+        // longer fly-and-fade that arrives near the chip and vanishes.
+        let nudgeX = chipPoint.x * 0.18
+        let nudgeY = chipPoint.y * 0.25
+        let nudge = SKAction.move(to: CGPoint(x: nudgeX, y: nudgeY), duration: 0.30)
+        nudge.timingMode = .easeOut
+
+        let flyEnd = CGPoint(x: chipPoint.x, y: chipPoint.y - 10)
+        let fly = SKAction.move(to: flyEnd, duration: 0.55)
+        fly.timingMode = .easeIn
 
         container.run(SKAction.sequence([
             popIn,
             settle,
-            SKAction.wait(forDuration: 0.22),
+            SKAction.wait(forDuration: 0.28),
+            nudge,
             SKAction.group([
-                drift,
-                SKAction.fadeOut(withDuration: 0.42)
+                fly,
+                SKAction.scale(to: 0.55, duration: 0.55),
+                SKAction.fadeOut(withDuration: 0.55)
             ]),
             SKAction.removeFromParent()
         ]))

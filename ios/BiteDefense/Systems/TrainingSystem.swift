@@ -153,24 +153,18 @@ final class TrainingSystem {
     // MARK: - Helpers
 
     private func spawnGarrisonedTroop(type: TroopType, level: Int, nearCamp camp: BuildingModel) {
-        // Kept the method name for API compat with earlier callers; the troop
-        // actually spawns in `.idle` on the battlefield now.
+        // Method name is retained for API compat — the troop actually spawns
+        // already `.idle` on the battlefield and is placed in the next open
+        // ring slot around the nearest Fort so they never overlap each other.
         let fort = nearestFort(to: camp)
         let anchor: BuildingModel = fort ?? camp
-
-        // Jittered deploy so a batch of trained troops doesn't stack exactly
-        // on the fort center. Matches the previous `deployGarrisonedTroops`
-        // placement pattern so visual feel stays consistent.
-        let jx = Double.random(in: -0.75...0.75)
-        let jy = Double.random(in: 0...0.8)
-        let col = Double(anchor.col) + Double(anchor.def.tileWidth) / 2.0 + jx
-        let row = Double(anchor.row) + Double(anchor.def.tileHeight) + 0.5 + jy
+        let slot = findOpenSlot(around: anchor)
 
         let id = state.mintTroopId()
         let hp = TroopConfig.def(for: type).hp(level: level)
         let troop = TroopModel(
             id: id, type: type, level: level,
-            col: col, row: row,
+            col: slot.col, row: slot.row,
             hp: hp, maxHP: hp,
             state: .idle,
             fortId: fort?.id,
@@ -179,6 +173,71 @@ final class TrainingSystem {
         state.troops.append(troop)
         EventBus.shared.send(.troopTrained(troopId: id, troopType: type, level: level))
         EventBus.shared.send(.troopDeployed(troopId: id))
+    }
+
+    /// Locate an unused tile in expanding rings around `anchor`. Preferred
+    /// order is "just below the building" (matches classic RTS fort deploy)
+    /// then spiraling outward. Avoids stacking on other live troops AND
+    /// stepping into building footprints.
+    ///
+    /// Fallback is the anchor's center — never returns nil so callers don't
+    /// need to handle empty results.
+    private func findOpenSlot(around anchor: BuildingModel) -> (col: Double, row: Double) {
+        let acx = Double(anchor.col) + Double(anchor.def.tileWidth) / 2.0
+        let acy = Double(anchor.row) + Double(anchor.def.tileHeight) / 2.0
+        let footprintHalfW = Double(anchor.def.tileWidth) / 2.0
+        let footprintHalfH = Double(anchor.def.tileHeight) / 2.0
+
+        let minSeparation = 0.85
+        // Candidate offsets ordered by "niceness": front-center rows first
+        // (so line-of-dogs forms below the fort), then sides and rear.
+        var candidates: [(Double, Double)] = []
+        for ringOffset in 1...6 {
+            let r = Double(ringOffset)
+            // Below-the-fort row (front line)
+            for dx in stride(from: -r, through: r, by: 1.0) {
+                candidates.append((dx, footprintHalfH + r - 0.5))
+            }
+            // Sides
+            for dy in stride(from: -(footprintHalfH + r - 1.5),
+                             through: footprintHalfH + r - 1.5,
+                             by: 1.0) {
+                candidates.append((-(footprintHalfW + r - 0.5), dy))
+                candidates.append(( footprintHalfW + r - 0.5,  dy))
+            }
+            // Rear row
+            for dx in stride(from: -r, through: r, by: 1.0) {
+                candidates.append((dx, -(footprintHalfH + r - 0.5)))
+            }
+        }
+
+        for (dx, dy) in candidates {
+            let col = acx + dx
+            let row = acy + dy
+            guard Grid(cols: Constants.gridCols, rows: Constants.gridRows)
+                .inBounds(col: Int(col.rounded()), row: Int(row.rounded())) else { continue }
+            // Reject tiles inside any building footprint.
+            if isInsideBuilding(col: col, row: row) { continue }
+            // Reject tiles occupied by another living troop.
+            if state.troops.contains(where: {
+                !$0.isDead && hypot($0.col - col, $0.row - row) < minSeparation
+            }) { continue }
+            return (col, row)
+        }
+        // Nothing fit — plop at anchor center. Combat's `separateUnits` pass
+        // will nudge them apart on the first battle tick if needed.
+        return (acx, acy)
+    }
+
+    private func isInsideBuilding(col: Double, row: Double) -> Bool {
+        for b in state.buildings {
+            let minC = Double(b.col)
+            let maxC = Double(b.col + b.def.tileWidth)
+            let minR = Double(b.row)
+            let maxR = Double(b.row + b.def.tileHeight)
+            if col >= minC && col <= maxC && row >= minR && row <= maxR { return true }
+        }
+        return false
     }
 
     private func nearestFort(to camp: BuildingModel) -> BuildingModel? {

@@ -33,6 +33,10 @@ final class GameCoordinator {
     /// placement/training) opens implicitly; this is the dedicated 🛒 toggle.
     var storeOpen: Bool = false
 
+    /// Whether the Settings panel is open. Difficulty + manual wave trigger
+    /// + auto-wave toggle live there to keep the main toolbar uncluttered.
+    var settingsOpen: Bool = false
+
     /// Whether the intro/info card is visible. Shown automatically on the
     /// first entry into BUILDING phase; also toggleable via the ℹ️ button.
     var infoCardVisible: Bool = false
@@ -333,6 +337,9 @@ final class GameCoordinator {
 
     func toggleStore() { storeOpen.toggle() }
 
+    func toggleSettings() { settingsOpen.toggle() }
+    func closeSettings() { settingsOpen = false }
+
     // MARK: - Wave controls
 
     /// Public entry point for the "Start Wave" / "Start Now" button. Waves
@@ -351,7 +358,7 @@ final class GameCoordinator {
             guidanceMessage = .hqStillBuilding
             return
         }
-        if !state.hasAtLeastOneCombatTroop {
+        if !state.hasAtLeastOneTroop {
             guidanceMessage = .needTroops
             return
         }
@@ -406,6 +413,10 @@ final class GameCoordinator {
         guard state.phase == .building else { return }
         guard level >= 1, level <= state.maxDifficultyUnlocked else { return }
         state.selectedDifficulty = level
+        // Cadence is difficulty-driven — reset so the displayed countdown
+        // matches the new interval immediately instead of finishing the
+        // previous interval first (which would feel laggy).
+        waveSystem.resetAutoWaveTimer()
     }
 
     func cycleBattleSpeed() {
@@ -446,9 +457,16 @@ final class GameCoordinator {
         }
     }
 
-    /// Idle-phase tap: same semantics as the old preBattle handler —
-    /// tap a troop to select, tap a tile to propose a move. Collectors are
-    /// also movable.
+    /// Idle-phase tap handler — now **direct-move** instead of the old
+    /// propose/confirm dance that felt sticky:
+    ///
+    ///   • Tap on (within 1.2 tiles of) a troop → toggle its selection.
+    ///   • Tap an empty tile with a troop selected → move the troop there
+    ///     IMMEDIATELY, keep selection so chain-moves work.
+    ///   • Tap an empty tile with nothing selected → auto-select the
+    ///     nearest living troop so the next tap moves it.
+    ///
+    /// `pendingTroopMove` is only used by the legacy `.preBattle` path now.
     private func handleIdleTroopTap(col: Int, row: Int) {
         let tapCx = Double(col) + 0.5
         let tapCy = Double(row) + 0.5
@@ -457,20 +475,38 @@ final class GameCoordinator {
             hypot(a.element.col - tapCx, a.element.row - tapCy) <
             hypot(b.element.col - tapCx, b.element.row - tapCy)
         }
+
+        // Case A: tap near an existing troop — toggle selection.
         if let hit = nearest,
            hypot(hit.element.col - tapCx, hit.element.row - tapCy) <= 1.2 {
-            state.selectedTroopId = hit.element.id
+            state.selectedTroopId = (state.selectedTroopId == hit.element.id)
+                ? nil
+                : hit.element.id
             pendingTroopMove = nil
             return
         }
-        if state.selectedTroopId == nil {
-            state.selectedTroopId = living.first?.element.id
-        }
-        guard state.selectedTroopId != nil else {
+
+        // Case B: tap an empty tile with a troop already selected — move now.
+        if let selectedId = state.selectedTroopId,
+           let idx = state.troops.firstIndex(where: { $0.id == selectedId }),
+           !state.troops[idx].isDead {
+            state.troops[idx].col = Double(col) + 0.5
+            state.troops[idx].row = Double(row) + 0.5
+            EventBus.shared.send(.troopMoved(troopId: selectedId,
+                                              col: state.troops[idx].col,
+                                              row: state.troops[idx].row))
+            // Keep the troop selected so a second tap keeps moving the same
+            // dog. Player taps them again to deselect.
             pendingTroopMove = nil
             return
         }
-        pendingTroopMove = TilePos(col: col, row: row)
+
+        // Case C: nothing selected yet — pre-select the nearest troop. The
+        // NEXT tap on an empty tile will move it.
+        if let first = living.first {
+            state.selectedTroopId = first.element.id
+        }
+        pendingTroopMove = nil
     }
 
     /// Pre-battle: tap a troop to select, tap a tile to *propose* a move

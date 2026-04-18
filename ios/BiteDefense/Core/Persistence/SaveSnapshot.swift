@@ -10,7 +10,11 @@ import Foundation
 struct SaveSnapshot: Codable {
     /// Bump when a non-additive change lands (e.g. removing a field, changing
     /// semantics). Additive changes can reuse the existing version.
-    static let currentSchemaVersion = 1
+    ///   • v1: initial idle-pivot schema.
+    ///   • v2: removed `TroopType.collector`; Collector is now a
+    ///         `BuildingType.collectorHouse`. Migrated by dropping any
+    ///         collector troop records on load.
+    static let currentSchemaVersion = 2
     var schemaVersion: Int = currentSchemaVersion
 
     // Resources

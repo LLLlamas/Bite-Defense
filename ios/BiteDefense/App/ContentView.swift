@@ -50,6 +50,8 @@ struct ContentView: View {
             .animation(.spring(response: 0.32, dampingFraction: 0.86),
                        value: coordinator.storeOpen)
             .animation(.spring(response: 0.32, dampingFraction: 0.86),
+                       value: coordinator.settingsOpen)
+            .animation(.spring(response: 0.32, dampingFraction: 0.86),
                        value: coordinator.pendingTroopMove)
 
             // Modal intro/info card.
@@ -111,12 +113,18 @@ struct ContentView: View {
     private var bottomStrip: some View {
         switch coordinator.state.phase {
         case .building:
-            // BottomPanel is always the main building-phase toolbar. The Store
-            // strip appears only when the player explicitly toggles the 🛒
-            // button — never implicitly when a building card is open.
+            // Toolbar is always the main building-phase strip. Store +
+            // Settings slide up above it when the player opens them; only one
+            // of {placement tray, training panel, building info, store,
+            // settings} is visible at a time because any tap mutually
+            // dismisses the others via coordinator state.
             BottomPanel(coordinator: coordinator)
             if coordinator.storeOpen {
                 StorePanel(coordinator: coordinator)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            if coordinator.settingsOpen {
+                SettingsPanel(coordinator: coordinator)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         case .preBattle:

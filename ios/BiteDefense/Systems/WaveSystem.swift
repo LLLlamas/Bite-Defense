@@ -122,19 +122,17 @@ final class WaveSystem {
             spawnEnemy(first)
         }
 
-        // Failure: HQ destroyed, all combat troops dead while enemies remain,
-        // OR every owned building sits below half HP.
+        // Failure: HQ destroyed, all troops dead while enemies remain, OR
+        // every owned building sits below half HP.
         let hqAlive = (state.hq?.hp ?? 0) > 0
-        let combatTroopsAlive = state.troops.contains {
-            !$0.isDead && $0.def.category != .utility
-        }
+        let troopsAlive = state.troops.contains { !$0.isDead }
         let enemiesRemaining = !state.enemies.isEmpty || !pending.isEmpty
 
         if !hqAlive {
             failWave()
             return
         }
-        if !combatTroopsAlive && enemiesRemaining {
+        if !troopsAlive && enemiesRemaining {
             failWave()
             return
         }
@@ -226,9 +224,9 @@ final class WaveSystem {
         state.add(reward.dogCoins, to: .dogCoins)
         state.addXP(reward.xp)
 
-        // Feed combat troops (collectors don't eat wave-scale rations).
+        // Feed surviving troops a scaled ration.
         var waterFeed = 0, milkFeed = 0
-        for t in state.troops where !t.isDead && t.def.category != .utility {
+        for t in state.troops where !t.isDead {
             let d = t.def
             waterFeed += d.feedWater * t.level
             milkFeed  += d.feedMilk  * t.level
@@ -260,7 +258,12 @@ final class WaveSystem {
         let theftPct = diff.rewardMult * 0.03
         let livingCats = state.enemies.filter { !$0.isDead }.count + pending.count
         var totalPct = theftPct * Double(livingCats)
-        if totalPct > 0.5 { totalPct = 0.5 }
+        // Collector Houses are juicy targets — cats drag off an extra chunk
+        // per house when they break through. Classic idle-game risk/reward:
+        // better passive income ⇢ bigger loss on failure.
+        let collectorHouses = state.buildings.filter { $0.type == .collectorHouse }.count
+        totalPct += Double(collectorHouses) * 0.06
+        totalPct = min(0.75, totalPct)
         let waterStolen = Int(Double(state.water) * totalPct)
         let milkStolen  = Int(Double(state.milk)  * totalPct)
         state.water = max(0, state.water - waterStolen)

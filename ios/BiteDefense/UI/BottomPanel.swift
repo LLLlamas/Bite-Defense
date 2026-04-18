@@ -1,40 +1,33 @@
 import SwiftUI
 
-/// Panel at the bottom of the screen during BUILDING phase. Shows difficulty
-/// stars + "Start Wave" button. Replaces the store panel when a wave is
-/// imminent (player can cancel).
+/// Bottom toolbar during the idle `.building` phase. Three buttons only —
+/// Info, Shop, and Settings. The difficulty chips + "Start Wave" manual
+/// trigger have moved under Settings so the main toolbar stays clean.
 struct BottomPanel: View {
     @Bindable var coordinator: GameCoordinator
 
     var body: some View {
-        VStack(spacing: 8) {
-            difficultyRow
-            HStack(spacing: 10) {
-                Button {
-                    coordinator.requestStartWave()
-                } label: {
-                    Label(startWaveLabel, systemImage: "flag.checkered")
-                        .font(.callout.bold())
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.red)
-                Spacer()
-                // Info + Store buttons live here (previously floating in the
-                // bottom-right corner) so the toolbar covers all building-phase
-                // controls in one strip.
-                toolbarIconButton(symbol: "info.circle.fill",
-                                  label: "Info",
-                                  tint: .blue,
-                                  active: coordinator.infoCardVisible) {
-                    coordinator.toggleInfoCard()
-                }
-                toolbarIconButton(symbol: "cart.fill",
-                                  label: "Shop",
-                                  tint: .orange,
-                                  active: coordinator.storeOpen) {
-                    coordinator.toggleStore()
-                }
+        HStack(spacing: 10) {
+            Spacer()
+            toolbarIconButton(symbol: "info.circle.fill",
+                              label: "Info",
+                              tint: .blue,
+                              active: coordinator.infoCardVisible) {
+                coordinator.toggleInfoCard()
             }
+            toolbarIconButton(symbol: "cart.fill",
+                              label: "Shop",
+                              tint: .orange,
+                              active: coordinator.storeOpen) {
+                coordinator.toggleStore()
+            }
+            toolbarIconButton(symbol: "gearshape.fill",
+                              label: "Settings",
+                              tint: .purple,
+                              active: coordinator.settingsOpen) {
+                coordinator.toggleSettings()
+            }
+            Spacer()
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
@@ -52,31 +45,111 @@ struct BottomPanel: View {
                     .font(.caption.bold())
             }
             .foregroundStyle(.white)
-            .padding(.horizontal, 10)
-            .frame(height: 32)
+            .padding(.horizontal, 12)
+            .frame(height: 34)
             .background(active ? tint : tint.opacity(0.7),
                         in: Capsule())
             .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 1))
         }
         .buttonStyle(.bouncy)
     }
+}
 
-    private var difficultyRow: some View {
-        HStack(spacing: 6) {
-            ForEach(DifficultyConfig.order, id: \.self) { level in
-                difficultyChip(level: level)
+/// Settings panel — difficulty chips, Start Wave Now, Auto-wave toggle,
+/// and speed control. Shown above the toolbar when the gear button is tapped.
+struct SettingsPanel: View {
+    @Bindable var coordinator: GameCoordinator
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            header
+
+            // Difficulty — tier chips.
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Difficulty")
+                    .font(.caption.bold())
+                    .foregroundStyle(.white.opacity(0.75))
+                Text("Higher difficulties = shorter peace between waves + bigger rewards.")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.55))
+                HStack(spacing: 6) {
+                    ForEach(DifficultyConfig.order, id: \.self) { level in
+                        difficultyChip(level: level)
+                    }
+                }
             }
+
+            Divider().background(.white.opacity(0.2))
+
+            // Auto-wave toggle.
+            Toggle(isOn: Binding(
+                get: { coordinator.state.autoWaveEnabled },
+                set: { _ in coordinator.toggleAutoWaves() }
+            )) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Auto Waves")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.white)
+                    Text(waveIntervalSummary)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+            }
+            .tint(.orange)
+
+            // Manual trigger — skips the auto-wave countdown.
+            Button {
+                coordinator.requestStartWave()
+                coordinator.closeSettings()
+            } label: {
+                Label(startWaveLabel, systemImage: "flag.checkered")
+                    .font(.callout.bold())
+                    .frame(maxWidth: .infinity, minHeight: 36)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+        }
+        .padding(14)
+        .background(.black.opacity(0.88), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(.purple.opacity(0.45), lineWidth: 1.2)
+        )
+        .padding(.horizontal, 12)
+    }
+
+    private var header: some View {
+        HStack {
+            Image(systemName: "gearshape.fill")
+                .foregroundStyle(.purple)
+            Text("Settings")
+                .font(.headline)
+                .foregroundStyle(.white)
+            Spacer()
+            Button {
+                coordinator.closeSettings()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+            .buttonStyle(.plain)
         }
     }
 
-    /// "Start Wave" during a fresh run (no streak). Only shows the number
-    /// when the player is actively streaking — matches JS behavior where
-    /// wave numbers only advance during a continued run.
     private var startWaveLabel: String {
         if coordinator.state.waveStreak > 0 {
-            return "Continue · Wave \(coordinator.state.currentWave + 1)"
+            return "Start Now · Wave \(coordinator.state.currentWave + 1)"
         }
-        return "Start Wave"
+        return "Start Wave Now"
+    }
+
+    private var waveIntervalSummary: String {
+        let secs = Int(coordinator.state.autoWaveIntervalSeconds)
+        let mins = secs / 60
+        return coordinator.state.autoWaveEnabled
+            ? "Next wave every \(mins) min at this difficulty"
+            : "Auto-waves paused — use the manual trigger"
     }
 
     @ViewBuilder
@@ -88,25 +161,25 @@ struct BottomPanel: View {
         Button {
             coordinator.setDifficulty(level)
         } label: {
-            VStack(spacing: 1) {
+            VStack(spacing: 2) {
                 HStack(spacing: 1) {
                     ForEach(0..<level, id: \.self) { _ in
                         Image(systemName: "star.fill")
-                            .font(.system(size: 9))
+                            .font(.system(size: 10))
                             .foregroundStyle(unlocked ? .yellow : .gray)
                     }
                 }
                 Text(tier.displayName)
-                    .font(.system(size: 9, design: .rounded))
+                    .font(.system(size: 10, design: .rounded).bold())
                     .foregroundStyle(.white)
             }
-            .frame(width: 58, height: 34)
+            .frame(width: 60, height: 38)
             .background(
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(selected ? Color.orange.opacity(0.3) : Color.white.opacity(0.08))
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(selected ? Color.orange.opacity(0.35) : Color.white.opacity(0.08))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 7)
+                RoundedRectangle(cornerRadius: 8)
                     .stroke(selected ? Color.orange : Color.white.opacity(0.15),
                             lineWidth: selected ? 2 : 1)
             )
@@ -117,7 +190,9 @@ struct BottomPanel: View {
     }
 }
 
-/// Pre-battle overlay — shown when player is positioning troops.
+/// Pre-battle overlay — kept for the rare manual path where the player
+/// enters `.preBattle` for deliberate positioning. The idle-game auto-wave
+/// loop skips this phase entirely.
 struct PreBattleBar: View {
     @Bindable var coordinator: GameCoordinator
 
@@ -197,13 +272,13 @@ struct BattleBar: View {
                     .font(.callout.bold())
                     .foregroundStyle(.white)
                 HStack(spacing: 4) {
-                    Text("😾 \(aliveEnemyCount)")
+                    Text("Cats \(aliveEnemyCount)")
                     Text("·").foregroundStyle(.white.opacity(0.5))
-                    Text("🐕 \(aliveTroopCount)")
+                    Text("Dogs \(aliveTroopCount)")
                     if let hp = coordinator.state.hq?.hp,
                        let maxHP = coordinator.state.hq?.maxHP, maxHP > 0 {
                         Text("·").foregroundStyle(.white.opacity(0.5))
-                        Text("🏛️ \(hp)/\(maxHP)")
+                        Text("HQ \(hp)/\(maxHP)")
                     }
                 }
                 .font(.caption.monospacedDigit())
@@ -260,10 +335,15 @@ struct WaveResultCard: View {
                 .font(.title3.bold())
                 .foregroundStyle(.yellow)
             HStack(spacing: 20) {
-                stat(emoji: "💧", value: reward.water)
-                stat(emoji: "🥛", value: reward.milk)
-                stat(emoji: "🪙", value: reward.dogCoins)
-                stat(emoji: "⭐", value: reward.xp)
+                stat(icon: AnyView(WaterDropIcon(size: 22)), value: reward.water)
+                stat(icon: AnyView(MilkBottleIcon(size: 22)), value: reward.milk)
+                stat(icon: AnyView(DogCoinIcon(size: 22)),    value: reward.dogCoins)
+                VStack(spacing: 2) {
+                    Image(systemName: "star.fill").foregroundStyle(.yellow)
+                    Text("+\(reward.xp)")
+                        .font(.caption.monospacedDigit().bold())
+                        .foregroundStyle(.green)
+                }
             }
             if coordinator.state.waveStreak > 1 {
                 Text("Streak: \(coordinator.state.waveStreak) 🔥")
@@ -275,7 +355,7 @@ struct WaveResultCard: View {
                     .buttonStyle(.bordered).tint(.gray)
                 Button {
                     coordinator.dismissWaveResult()
-                    coordinator.startPreBattle()
+                    coordinator.requestStartWave()
                 } label: {
                     Label("Continue (Streak \(coordinator.state.waveStreak + 1))",
                           systemImage: "forward.fill")
@@ -299,12 +379,12 @@ struct WaveResultCard: View {
             Text("💀 Wave Failed")
                 .font(.title3.bold())
                 .foregroundStyle(.red)
-            Text("The cats got through and stole:")
+            Text("The cats broke through and stole:")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.8))
             HStack(spacing: 20) {
-                stat(emoji: "💧", value: -waterStolen)
-                stat(emoji: "🥛", value: -milkStolen)
+                stat(icon: AnyView(WaterDropIcon(size: 22)), value: -waterStolen)
+                stat(icon: AnyView(MilkBottleIcon(size: 22)), value: -milkStolen)
             }
             Button("Retreat to Base") { coordinator.dismissWaveResult() }
                 .buttonStyle(.borderedProminent).tint(.red)
@@ -319,9 +399,9 @@ struct WaveResultCard: View {
         .padding(.horizontal, 20)
     }
 
-    private func stat(emoji: String, value: Int) -> some View {
+    private func stat(icon: AnyView, value: Int) -> some View {
         VStack(spacing: 2) {
-            Text(emoji).font(.title3)
+            icon
             Text("\(value >= 0 ? "+" : "")\(value)")
                 .font(.caption.monospacedDigit().bold())
                 .foregroundStyle(value >= 0 ? .green : .red)

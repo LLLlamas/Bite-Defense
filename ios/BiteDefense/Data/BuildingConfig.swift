@@ -1,13 +1,17 @@
 import CoreGraphics
 
 enum BuildingType: String, CaseIterable, Codable, Hashable {
-    case dogHQ        = "DOG_HQ"
-    case trainingCamp = "TRAINING_CAMP"
-    case fort         = "FORT"
-    case wall         = "WALL"
-    case waterWell    = "WATER_WELL"
-    case milkFarm     = "MILK_FARM"
-    case archerTower  = "ARCHER_TOWER"
+    case dogHQ          = "DOG_HQ"
+    case trainingCamp   = "TRAINING_CAMP"
+    case fort           = "FORT"
+    case wall           = "WALL"
+    case waterWell      = "WATER_WELL"
+    case milkFarm       = "MILK_FARM"
+    case archerTower    = "ARCHER_TOWER"
+    /// Idle-game resource booster. Houses a collector dog that harvests BOTH
+    /// water and milk passively. Cats prefer to attack this, and losing with
+    /// one standing drains extra stockpile on a wave fail.
+    case collectorHouse = "COLLECTOR_HOUSE"
 }
 
 /// Static design data per building. Direct port of `BuildingConfig.js`.
@@ -191,8 +195,34 @@ enum BuildingConfig {
             upgradeUsesCoins: false, upgradeCoinCost: nil,
             generatesResource: nil, generationRate: [],
             queueSize: [], troopCapacity: []
+        ),
+        .collectorHouse: BuildingDef(
+            type: .collectorHouse, displayName: "Collector House",
+            description: "A Collector Dog lives here and gathers water + milk for you. Cats target it — if it falls or a wave is lost, extra resources spill.",
+            tileWidth: 2, tileHeight: 2, emoji: "🐾",
+            fillColor:   SKColorRGB(r: 0xe8, g: 0xc0, b: 0x90),
+            borderColor: SKColorRGB(r: 0x8a, g: 0x5e, b: 0x30),
+            maxLevel: 5, unique: false, cappedByHQLevel: true, unlockLevel: 2,
+            costs:     [200, 500, 1200, 2800, 6000],
+            buildTime: [40,  80,  160,  320,  640],
+            upgradeUsesCoins: true,
+            upgradeCoinCost: [0, 12, 30, 60, 120],
+            // `generatesResource` stays nil here because the house produces
+            // BOTH water and milk (see `collectorHouseBonusPerMinute`).
+            // ResourceSystem branches on type == .collectorHouse.
+            generatesResource: nil, generationRate: [],
+            queueSize: [], troopCapacity: []
         )
     ]
+
+    /// Per-minute water + milk bonus granted by each Collector House at its
+    /// current level. Applied live by `ResourceSystem` and retroactively by
+    /// `SaveManager.applyOfflineCatchUp` — both paths must agree.
+    static func collectorHouseBonusPerMinute(level: Int) -> (water: Int, milk: Int) {
+        let arr: [(Int, Int)] = [(4, 3), (8, 6), (14, 10), (22, 16), (32, 24)]
+        let i = min(max(level - 1, 0), arr.count - 1)
+        return arr[i]
+    }
 
     static func def(for type: BuildingType) -> BuildingDef { definitions[type]! }
 
@@ -200,6 +230,6 @@ enum BuildingConfig {
     /// Dog HQ is intentionally excluded: it's a unique first-placement flow
     /// driven from the intro/info card, not the regular store.
     static let storeOrder: [BuildingType] = [
-        .trainingCamp, .fort, .waterWell, .milkFarm, .archerTower, .wall
+        .trainingCamp, .fort, .waterWell, .milkFarm, .collectorHouse, .archerTower, .wall
     ]
 }

@@ -101,19 +101,11 @@ final class SaveManager {
             state.accumulate(perSecond * elapsed, to: kind)
         }
 
-        // 2. Collector troops — flat water/milk bonus per active collector.
-        var collectorWaterPerMin = 0
-        var collectorMilkPerMin = 0
-        for t in state.troops where !t.isDead && t.type == .collector {
-            let bonus = TroopConfig.collectorBonusPerMinute(level: t.level)
-            collectorWaterPerMin += bonus
-            collectorMilkPerMin  += bonus
-        }
-        if collectorWaterPerMin > 0 {
-            state.accumulate(Double(collectorWaterPerMin) / 60.0 * elapsed, to: .water)
-        }
-        if collectorMilkPerMin > 0 {
-            state.accumulate(Double(collectorMilkPerMin) / 60.0 * elapsed, to: .milk)
+        // 2. Collector Houses — flat water + milk bonus per active house.
+        for b in state.buildings where !b.isBuilding && b.type == .collectorHouse {
+            let bonus = BuildingConfig.collectorHouseBonusPerMinute(level: b.level)
+            state.accumulate(Double(bonus.water) / 60.0 * elapsed, to: .water)
+            state.accumulate(Double(bonus.milk)  / 60.0 * elapsed, to: .milk)
         }
 
         // 3. Construction timers.
@@ -264,8 +256,12 @@ final class SaveManager {
                 isUpgrading: r.isUpgrading
             )
         }
-        state.troops = s.troops.map { r in
-            TroopModel(
+        // Drop legacy collector troops — they became a Building in v2. The
+        // player keeps any existing Collector House records (stored as
+        // normal buildings) with no data loss.
+        state.troops = s.troops.compactMap { r in
+            guard r.type != .collector else { return nil }
+            return TroopModel(
                 id: r.id, type: r.type, level: r.level,
                 col: r.col, row: r.row,
                 hp: r.hp, maxHP: r.maxHP,

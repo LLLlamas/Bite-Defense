@@ -65,16 +65,18 @@ final class GameState {
     /// first-launch offline catch-up is a no-op until we've written once.
     var lastSavedAt: Date? = nil
 
-    /// Seconds between auto-waves at the current HQ level. Scales from 2h
-    /// (HQ L1) down to 1h (HQ L10). Player can still trigger a wave early
-    /// via the "Start Wave" button without waiting for the timer.
+    /// Seconds between auto-waves at the current **difficulty** (not HQ
+    /// level — cats hit harder on harder difficulties, simpler model):
+    ///   • Difficulty 1 (Easy):      5 min
+    ///   • Difficulty 2:              4 min
+    ///   • Difficulty 3:              3 min
+    ///   • Difficulty 4:              2 min
+    ///   • Difficulty 5 (Legendary): 1 min
+    /// Player can skip the timer with "Start Wave Now" from Settings.
     var autoWaveIntervalSeconds: Double {
-        // Linear interp: L1 → 7200s, L10 → 3600s.
-        let lv = min(max(hqLevel, 1), 10)
-        let start: Double = 7200
-        let end: Double = 3600
-        let t = Double(lv - 1) / 9.0
-        return start + (end - start) * t
+        let d = min(max(selectedDifficulty, 1), 5)
+        // 5 min at D1 → 1 min at D5, minus 1 min per step.
+        return Double(6 - d) * 60
     }
 
     /// Transient UI: which troop is selected for moving (during PRE_BATTLE).
@@ -258,13 +260,14 @@ final class GameState {
     static func buildingMaxHP(type: BuildingType, level: Int) -> Int {
         let lv = max(1, level)
         switch type {
-        case .dogHQ:        return hqMaxHP(level: lv)
-        case .fort:         return 250 + 70 * (lv - 1)
-        case .trainingCamp: return 200 + 60 * (lv - 1)
-        case .archerTower:  return 150 + 50 * (lv - 1)
-        case .wall:         return 150 + 50 * (lv - 1)
-        case .waterWell:    return 120 + 40 * (lv - 1)
-        case .milkFarm:     return 120 + 40 * (lv - 1)
+        case .dogHQ:          return hqMaxHP(level: lv)
+        case .fort:           return 250 + 70 * (lv - 1)
+        case .trainingCamp:   return 200 + 60 * (lv - 1)
+        case .archerTower:    return 150 + 50 * (lv - 1)
+        case .wall:           return 150 + 50 * (lv - 1)
+        case .waterWell:      return 120 + 40 * (lv - 1)
+        case .milkFarm:       return 120 + 40 * (lv - 1)
+        case .collectorHouse: return 180 + 60 * (lv - 1)
         }
     }
 
@@ -276,16 +279,11 @@ final class GameState {
         return !hq.isBuilding && hq.hp > 0
     }
 
-    /// True if at least one living, non-dead troop exists (garrisoned or
-    /// deployed). Drives wave-start gating.
+    /// True if at least one living, non-dead troop exists. All troop types
+    /// are combat-capable now (collector moved to a Building, `.utility`
+    /// category kept only for back-compat decoding).
     var hasAtLeastOneTroop: Bool {
         troops.contains { !$0.isDead }
-    }
-
-    /// True if at least one living COMBAT troop exists — collectors don't
-    /// count because they can't actually fight. Used to gate "Start Wave".
-    var hasAtLeastOneCombatTroop: Bool {
-        troops.contains { !$0.isDead && $0.def.category != .utility }
     }
 
     /// True if the player owns at least one Archer Tower (built or building).

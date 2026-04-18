@@ -30,8 +30,7 @@ final class CombatSystem {
     private func updateTroops(dt: Double) {
         for i in state.troops.indices {
             guard !state.troops[i].isDead,
-                  state.troops[i].state != .garrisoned,
-                  state.troops[i].def.category != .utility else { continue }
+                  state.troops[i].state != .garrisoned else { continue }
 
             let t = state.troops[i]
             let range = t.def.range(level: t.level)
@@ -121,14 +120,23 @@ final class CombatSystem {
             let ex = state.enemies[i].col
             let ey = state.enemies[i].row
 
-            // Pick the nearest target: any battlefield troop OR any standing
-            // building. Enemies no longer "pass through" a fort to get to HQ.
+            // Type-preferred target first. Tank cats want the HQ; basic/fast
+            // cats want the Collector House if one exists (juicy loot bag),
+            // otherwise dog troops, otherwise whatever's standing. Falling
+            // back to `nearestBuildingIndex` keeps old behavior when the
+            // preferred target doesn't exist.
+            let preferred = preferredBuildingIndex(forEnemy: state.enemies[i],
+                                                     ex: ex, ey: ey)
             let troopPick = nearestTroopIndex(forEnemyAt: ex, ey: ey)
-            let buildingPick = nearestBuildingIndex(forEnemyAt: ex, ey: ey)
+            let buildingPick = preferred ?? nearestBuildingIndex(forEnemyAt: ex, ey: ey)
 
+            // When we DO have a preferred building target, bias the decision
+            // toward it so tanks ignore troops and march on HQ, and basic
+            // cats ignore troops while a Collector House is up.
             let troopDist = troopPick?.dist ?? .infinity
             let buildingDist = buildingPick?.dist ?? .infinity
-            let attackingBuilding = buildingDist < troopDist
+            let preferredHit = preferred != nil
+            let attackingBuilding = preferredHit || buildingDist < troopDist
 
             if attackingBuilding, let pick = buildingPick {
                 let hi = pick.idx
@@ -183,11 +191,7 @@ final class CombatSystem {
         var best: (idx: Int, dist: Double)? = nil
         for j in state.troops.indices {
             let t = state.troops[j]
-            // Skip dead troops, legacy garrisoned state, and utility troops
-            // (collectors are non-combatants — enemies ignore them).
-            guard !t.isDead,
-                  t.state != .garrisoned,
-                  t.def.category != .utility else { continue }
+            guard !t.isDead, t.state != .garrisoned else { continue }
             let d = hypot(t.col - ex, t.row - ey)
             if d < (best?.dist ?? .infinity) {
                 best = (j, d)
@@ -196,12 +200,29 @@ final class CombatSystem {
         return best
     }
 
-    private func nearestBuildingIndex(forEnemyAt ex: Double, ey: Double)
+    /// Returns the preferred-type target for this enemy, if one exists:
+    ///   • Tank cats → the Dog HQ.
+    ///   • Basic / Fast cats → the nearest Collector House (none ⇒ nil, so
+    ///     the caller falls back to troop / any-building targeting).
+    private func preferredBuildingIndex(forEnemy enemy: EnemyModel,
+                                         ex: Double, ey: Double)
+        -> (idx: Int, dist: Double, cx: Double, cy: Double)? {
+        let preferredTypes: [BuildingType]
+        switch enemy.type {
+        case .tankCat:             preferredTypes = [.dogHQ]
+        case .basicCat, .fastCat:  preferredTypes = [.collectorHouse]
+        }
+        return nearestBuildingIndex(forEnemyAt: ex, ey: ey,
+                                     filter: { preferredTypes.contains($0.type) })
+    }
+
+    private func nearestBuildingIndex(forEnemyAt ex: Double, ey: Double,
+                                       filter: (BuildingModel) -> Bool = { _ in true })
         -> (idx: Int, dist: Double, cx: Double, cy: Double)? {
         var best: (idx: Int, dist: Double, cx: Double, cy: Double)? = nil
         for k in state.buildings.indices {
             let b = state.buildings[k]
-            guard b.hp > 0, b.maxHP > 0 else { continue }
+            guard b.hp > 0, b.maxHP > 0, filter(b) else { continue }
             let cx = Double(b.col) + Double(b.def.tileWidth) / 2
             let cy = Double(b.row) + Double(b.def.tileHeight) / 2
             // Distance to the edge of the building footprint, not center —
@@ -243,8 +264,6 @@ final class CombatSystem {
         bodies.reserveCapacity(state.troops.count + state.enemies.count)
         for i in state.troops.indices where !state.troops[i].isDead
                                        && state.troops[i].state != .garrisoned {
-            // Include utility troops in separation (they still occupy space)
-            // even though combat skips them.
             bodies.append(Body(isTroop: true, idx: i,
                                col: state.troops[i].col, row: state.troops[i].row))
         }

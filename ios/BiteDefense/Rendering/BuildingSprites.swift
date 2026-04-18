@@ -38,13 +38,14 @@ enum BuildingSprites {
 
     fileprivate static func dispatch(type: BuildingType, in cg: CGContext, size: CGSize) {
         switch type {
-        case .dogHQ:        drawDogHQ(cg, size: size)
-        case .trainingCamp: drawTrainingCamp(cg, size: size)
-        case .fort:         drawFort(cg, size: size)
-        case .wall:         drawWall(cg, size: size)
-        case .waterWell:    drawWaterWell(cg, size: size)
-        case .milkFarm:     drawMilkFarm(cg, size: size)
-        case .archerTower:  drawArcherTower(cg, size: size)
+        case .dogHQ:          drawDogHQ(cg, size: size)
+        case .trainingCamp:   drawTrainingCamp(cg, size: size)
+        case .fort:           drawFort(cg, size: size)
+        case .wall:           drawWall(cg, size: size)
+        case .waterWell:      drawWaterWell(cg, size: size)
+        case .milkFarm:       drawMilkFarm(cg, size: size)
+        case .archerTower:    drawArcherTower(cg, size: size)
+        case .collectorHouse: drawCollectorHouse(cg, size: size)
         }
     }
 
@@ -342,6 +343,57 @@ enum BuildingSprites {
         cg.addLine(to: CGPoint(x: 24*sx, y: 51*sy))
         cg.closePath()
         cg.drawPath(using: .fillStroke)
+    }
+
+    // MARK: - Collector House (2x2 = 64x64) — tan cottage with paw badge + dog peeking
+
+    private static func drawCollectorHouse(_ cg: CGContext, size: CGSize) {
+        let W = size.width, H = size.height
+        let sx = W / 64, sy = H / 64
+
+        fillRoundedRect(cg, x: 4*sx, y: 6*sy, w: 56*sx, h: 56*sy, r: 4, color: shadow)
+        // Cottage base (warm tan)
+        fillAndStrokeRoundedRect(cg, x: 2*sx, y: 2*sy, w: 56*sx, h: 56*sy, r: 4,
+                                 fill: hex(0xe8c090), stroke: ink, line: 2)
+        // Thatched roof band (upper third)
+        fillAndStrokeRoundedRect(cg, x: 6*sx, y: 6*sy, w: 48*sx, h: 18*sy, r: 3,
+                                 fill: hex(0xa06838), stroke: ink, line: 1.6)
+        // Roof shingles — two thatch strokes
+        cg.setStrokeColor(hex(0x7a4a22).cgColor)
+        cg.setLineWidth(1.2)
+        for y in [12.0, 18.0] as [CGFloat] {
+            cg.move(to: CGPoint(x: 6*sx, y: y*sy))
+            cg.addLine(to: CGPoint(x: 54*sx, y: y*sy))
+        }
+        cg.strokePath()
+        // Door
+        fillAndStrokeRoundedRect(cg, x: 26*sx, y: 30*sy, w: 12*sx, h: 22*sy, r: 3,
+                                 fill: hex(0x6a3f20), stroke: ink, line: 1.4)
+        // Golden paw badge above door
+        fillAndStrokeEllipse(cg, cx: 32*sx, cy: 24*sy, rx: 6, ry: 6,
+                             fill: hex(0xffd66a), stroke: ink, line: 1.4)
+        // Paw shape on badge
+        fillEllipse(cg, cx: 32*sx, cy: 25*sy, rx: 2.6, ry: 2.1, color: ink)
+        fillEllipse(cg, cx: 29.5*sx, cy: 22.6*sy, rx: 1.1, ry: 1.1, color: ink)
+        fillEllipse(cg, cx: 32*sx,   cy: 21.8*sy, rx: 1.1, ry: 1.1, color: ink)
+        fillEllipse(cg, cx: 34.5*sx, cy: 22.6*sy, rx: 1.1, ry: 1.1, color: ink)
+        // Flanking windows with warm glow
+        fillAndStrokeRect(cg, x: 8*sx,  y: 32*sy, w: 12*sx, h: 12*sy,
+                          fill: hex(0xffe08a), stroke: ink, line: 1.3)
+        fillAndStrokeRect(cg, x: 44*sx, y: 32*sy, w: 12*sx, h: 12*sy,
+                          fill: hex(0xffe08a), stroke: ink, line: 1.3)
+        cg.setStrokeColor(ink.cgColor)
+        cg.setLineWidth(0.9)
+        cg.move(to: CGPoint(x: 14*sx, y: 32*sy)); cg.addLine(to: CGPoint(x: 14*sx, y: 44*sy))
+        cg.move(to: CGPoint(x: 8*sx,  y: 38*sy)); cg.addLine(to: CGPoint(x: 20*sx, y: 38*sy))
+        cg.move(to: CGPoint(x: 50*sx, y: 32*sy)); cg.addLine(to: CGPoint(x: 50*sx, y: 44*sy))
+        cg.move(to: CGPoint(x: 44*sx, y: 38*sy)); cg.addLine(to: CGPoint(x: 56*sx, y: 38*sy))
+        cg.strokePath()
+        // Flower box tiny accent
+        fillEllipse(cg, cx: 10*sx, cy: 47*sy, rx: 1.3, ry: 1.3, color: hex(0xf4a8c8))
+        fillEllipse(cg, cx: 14*sx, cy: 47*sy, rx: 1.3, ry: 1.3, color: hex(0xfff500))
+        fillEllipse(cg, cx: 50*sx, cy: 47*sy, rx: 1.3, ry: 1.3, color: hex(0xfff500))
+        fillEllipse(cg, cx: 54*sx, cy: 47*sy, rx: 1.3, ry: 1.3, color: hex(0xf4a8c8))
     }
 
     // MARK: - CG drawing helpers

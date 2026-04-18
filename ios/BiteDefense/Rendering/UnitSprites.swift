@@ -20,13 +20,27 @@ enum UnitSprites {
         if let cached = troopCache[key] { return cached }
         let texture = bake { cg in
             switch type {
-            case .soldier:   drawSoldierDog(cg, level: level)
-            case .archer:    drawArcherDog(cg, level: level)
-            case .collector: drawCollectorDog(cg, level: level)
+            case .soldier: drawSoldierDog(cg, level: level)
+            case .archer:  drawArcherDog(cg, level: level)
             }
         }
         troopCache[key] = texture
         return texture
+    }
+
+    /// Kept as a standalone helper: Building rendering reuses this to draw a
+    /// small "dog-in-the-house" mascot on top of the Collector House tile.
+    static func collectorMascotImage(side: CGFloat = 48) -> UIImage {
+        let fmt = UIGraphicsImageRendererFormat.default()
+        fmt.scale = max(UIScreen.main.scale, 2)
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side),
+                                                format: fmt)
+        return renderer.image { ctx in
+            let cg = ctx.cgContext
+            cg.translateBy(x: side / 2, y: side / 2)
+            cg.scaleBy(x: 0.48, y: 0.48)
+            drawCollectorDog(cg, level: 1)
+        }
     }
 
     static func catTexture(for type: EnemyType) -> SKTexture {

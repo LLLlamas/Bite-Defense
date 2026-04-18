@@ -1,18 +1,19 @@
 import CoreGraphics
 
 enum TroopType: String, CaseIterable, Codable, Hashable {
-    case soldier   = "SOLDIER"
-    case archer    = "ARCHER"
-    /// Non-combat idle-game unit. Passively collects resources from nearby
-    /// water/milk buildings. Doesn't engage enemies, retreats when a wave
-    /// starts. Unlocks at player level 2.
+    case soldier = "SOLDIER"
+    case archer  = "ARCHER"
+    /// Legacy — kept so v1 saves that contain collector troops still decode.
+    /// `SaveManager.apply` filters any `.collector` records out on load, so
+    /// no live game code ever has to handle this variant at runtime. Not
+    /// listed in `TroopConfig.order` (i.e. invisible to the UI).
     case collector = "COLLECTOR"
 }
 
 enum TroopCategory: String, Codable, Hashable {
     case melee
     case ranged
-    /// Non-combat resource harvester. Skipped by `CombatSystem`.
+    /// Legacy — see `TroopType.collector`.
     case utility
 }
 
@@ -92,32 +93,26 @@ enum TroopConfig {
             trainResource: .water,
             feedWater: 3, feedMilk: 0, maxLevel: 5, unlockLevel: 3
         ),
+        // Legacy stub so `def(for: .collector)` never crashes if a live
+        // call path still references it. Zero damage, off-map defaults.
+        // Not listed in `order`, so no UI surfaces it.
         .collector: TroopDef(
-            type: .collector, displayName: "Collector Dog", category: .utility,
-            emoji: "🐾", description: "Idle harvester. Adds passive water + milk income while placed on the map.",
+            type: .collector, displayName: "Collector (legacy)", category: .utility,
+            emoji: "🐾", description: "Legacy unit — replaced by Collector House.",
             color: SKColorRGB(r: 0xf4, g: 0xc8, b: 0x74),
-            hp:          [30, 40, 55, 75, 100],
+            hp:          [1, 1, 1, 1, 1],
             damage:      [0, 0, 0, 0, 0],
-            speed:       [0.8, 0.9, 1.0, 1.1, 1.2],
+            speed:       [0, 0, 0, 0, 0],
             range:       [0, 0, 0, 0, 0],
             attackSpeed: [1, 1, 1, 1, 1],
-            trainTime:   [20, 40, 80, 160, 300],
-            trainCost:   [60, 140, 300, 640, 1400],
+            trainTime:   [1, 1, 1, 1, 1],
+            trainCost:   [1, 1, 1, 1, 1],
             trainResource: .dogCoins,
-            feedWater: 1, feedMilk: 1, maxLevel: 5, unlockLevel: 2
+            feedWater: 0, feedMilk: 0, maxLevel: 5, unlockLevel: 99
         )
     ]
 
     static func def(for type: TroopType) -> TroopDef { definitions[type]! }
 
-    static let order: [TroopType] = [.soldier, .archer, .collector]
-
-    /// Bonus per-minute generation rate contributed by a collector troop at
-    /// the given level. Applies to BOTH water and milk (flat bonus — not
-    /// per-building). A level-1 collector adds 2 water/min + 2 milk/min.
-    static func collectorBonusPerMinute(level: Int) -> Int {
-        let arr = [2, 4, 7, 11, 16]
-        let i = min(max(level - 1, 0), arr.count - 1)
-        return arr[i]
-    }
+    static let order: [TroopType] = [.soldier, .archer]
 }

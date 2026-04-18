@@ -1,71 +1,26 @@
 import SwiftUI
 
-/// Bottom strip — now split into two tabs:
+/// Horizontal strip of placeable buildings. The Collector House is listed
+/// alongside the other buildings — troops (soldier / archer) are still
+/// trained from a Training Camp, not a store card.
 ///
-/// • **Buildings** — every placeable structure, tapping enters placement mode.
-/// • **Troops** — the Collector Dog (idle harvester) lives here. Combat
-///   troops still train via Training Camps, but the collector is a premium
-///   one-off unit so it's surfaced as a store card for discoverability.
-///
-/// Every card uses the new plush `ResourceIcon` family and a baked building
-/// thumbnail where applicable — no more emoji placeholders.
+/// Every card uses the new plush `ResourceIcon` family + a baked building
+/// thumbnail so the store preview matches the in-game art exactly.
 struct StorePanel: View {
     @Bindable var coordinator: GameCoordinator
 
-    enum Tab: Hashable { case buildings, troops }
-    @State private var tab: Tab = .buildings
-
     var body: some View {
-        VStack(spacing: 0) {
-            tabBar
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    switch tab {
-                    case .buildings:
-                        ForEach(BuildingConfig.storeOrder, id: \.self) { type in
-                            buildingCard(type: type)
-                        }
-                    case .troops:
-                        collectorCard
-                    }
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(BuildingConfig.storeOrder, id: \.self) { type in
+                    buildingCard(type: type)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
         }
         .background(.black.opacity(0.7))
     }
-
-    // MARK: - Tabs
-
-    private var tabBar: some View {
-        HStack(spacing: 6) {
-            tabButton("Buildings", systemImage: "house.fill", tag: .buildings)
-            tabButton("Troops", systemImage: "pawprint.fill", tag: .troops)
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.top, 8)
-    }
-
-    private func tabButton(_ label: String, systemImage: String, tag: Tab) -> some View {
-        Button {
-            tab = tag
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: systemImage).font(.caption2)
-                Text(label).font(.caption.bold())
-            }
-            .padding(.horizontal, 10)
-            .frame(height: 22)
-            .background(tab == tag ? Color.orange.opacity(0.75) : Color.white.opacity(0.1),
-                        in: Capsule())
-            .foregroundStyle(.white)
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Building card
 
     @ViewBuilder
     private func buildingCard(type: BuildingType) -> some View {
@@ -131,69 +86,6 @@ struct StorePanel: View {
         }
         .buttonStyle(.bouncy)
         .disabled(disabled)
-    }
-
-    // MARK: - Collector card
-
-    /// The collector lives under a "Troops" tab because it's trained (not
-    /// placed). Combat troops (soldier / archer) continue to come from
-    /// Training Camps — this tile is here for the idle-game bonus unit.
-    @ViewBuilder
-    private var collectorCard: some View {
-        let def = TroopConfig.def(for: .collector)
-        let locked = coordinator.state.playerLevel < def.unlockLevel
-        let hasCamp = coordinator.state.buildings.contains {
-            $0.type == .trainingCamp && !$0.isBuilding
-        }
-        let disabled = locked || !hasCamp
-
-        Button {
-            // Tapping routes the player to a training camp so they can queue
-            // a collector. If none exists, highlight the camp store card.
-            if let camp = coordinator.state.buildings.first(where: {
-                $0.type == .trainingCamp && !$0.isBuilding
-            }) {
-                coordinator.trainingPanelCampId = camp.id
-            } else {
-                coordinator.highlightStoreItem(.trainingCamp)
-            }
-        } label: {
-            VStack(spacing: 4) {
-                PawIcon(size: 30, color: Color(red: 0.95, green: 0.78, blue: 0.45))
-                    .frame(width: 48, height: 36)
-                Text("Collector Dog").font(.caption2.bold())
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                HStack(spacing: 3) {
-                    DogCoinIcon(size: 10)
-                    Text("\(def.trainCost(level: 1))")
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.85))
-                }
-                Text(locked
-                     ? "Lv \(def.unlockLevel)"
-                     : (hasCamp ? "+2 💧 +2 🥛/min" : "Needs camp"))
-                    .font(.system(size: 8, design: .monospaced))
-                    .foregroundStyle(locked ? .red.opacity(0.8)
-                                    : (hasCamp ? .green : .orange))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-            .frame(width: 96, height: 96)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color(red: 0.25, green: 0.18, blue: 0.1).opacity(0.8))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(disabled ? Color.white.opacity(0.18)
-                                     : Color.yellow.opacity(0.6),
-                            lineWidth: disabled ? 1 : 2)
-            )
-            .opacity(disabled ? 0.55 : 1.0)
-        }
-        .buttonStyle(.bouncy)
     }
 }
 
