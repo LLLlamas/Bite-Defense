@@ -20,8 +20,9 @@ enum UnitSprites {
         if let cached = troopCache[key] { return cached }
         let texture = bake { cg in
             switch type {
-            case .soldier: drawSoldierDog(cg, level: level)
-            case .archer:  drawArcherDog(cg, level: level)
+            case .soldier:   drawSoldierDog(cg, level: level)
+            case .archer:    drawArcherDog(cg, level: level)
+            case .collector: drawCollectorDog(cg, level: level)  // legacy v1 save fallback
             }
         }
         troopCache[key] = texture
