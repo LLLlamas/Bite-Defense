@@ -45,6 +45,24 @@ final class GameScene: SKScene {
             .receive(on: RunLoop.main)
             .sink { [weak self] event in self?.handle(event: event) }
             .store(in: &cancellables)
+
+        // If a save was loaded before the scene existed, the buildingPlaced /
+        // troopDeployed events fired into a nil subscriber. Replay them now
+        // so the on-screen state matches the model.
+        syncFromLoadedState()
+    }
+
+    /// Rebuild scene nodes from the current `GameState` — used after a cold
+    /// launch where persistence restored state before the scene existed.
+    /// Safe to call multiple times; existing nodes are left in place.
+    private func syncFromLoadedState() {
+        guard let state = coordinator?.state else { return }
+        for model in state.buildings where buildings[model.id] == nil {
+            spawnBuildingNode(for: model)
+        }
+        for model in state.troops where !model.isDead && troops[model.id] == nil {
+            spawnTroopNode(for: model)
+        }
     }
 
     override func didChangeSize(_ oldSize: CGSize) {
@@ -131,11 +149,12 @@ final class GameScene: SKScene {
             spawnProjectile(fromCol: fx, fromRow: fy, toCol: tx, toRow: ty)
         case .phaseChanged(let phase):
             if phase == .building {
-                // Clear lingering battlefield nodes when we return to building.
+                // Idle/auto-battler: troops persist across waves — only clear
+                // enemies + transient overlays. The ground-truth troop list
+                // is in `GameState.troops`, and nodes already on screen
+                // continue to represent them.
                 enemies.values.forEach { $0.removeFromParent() }
                 enemies.removeAll()
-                troops.values.forEach { $0.removeFromParent() }
-                troops.removeAll()
                 spawnIndicator?.removeFromParent()
                 spawnIndicator = nil
                 pendingMovePreview?.removeFromParent()

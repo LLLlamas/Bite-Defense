@@ -54,11 +54,20 @@ final class GameCoordinator {
 
     @ObservationIgnored private var cancellables: Set<AnyCancellable> = []
 
-    init() {
+    /// On-disk persistence. Loads at init; `BiteDefenseApp` drives save on
+    /// app backgrounding + an in-memory auto-save every 30 seconds.
+    @ObservationIgnored let saveManager: SaveManager
+    @ObservationIgnored private var autoSaveTask: Task<Void, Never>? = nil
+    /// Summary of offline progression applied at launch. Surfaced by the
+    /// "Welcome back" card so the player sees exactly what accumulated.
+    var offlineSummary: OfflineSummary? = nil
+
+    init(saveManager: SaveManager = SaveManager()) {
         let state = GameState()
         let grid = Grid()
         self.state = state
         self.grid = grid
+        self.saveManager = saveManager
         self.buildingSystem  = BuildingSystem(state: state, grid: grid)
         self.constructionSystem = ConstructionSystem(state: state)
         self.resourceSystem  = ResourceSystem(state: state)
@@ -76,7 +85,63 @@ final class GameCoordinator {
                 self?.presentLevelUp(newLevel: level)
             }
             .store(in: &cancellables)
+
+        loadAndResume()
+        startAutoSaveLoop()
     }
+
+    deinit {
+        autoSaveTask?.cancel()
+    }
+
+    // MARK: - Persistence integration
+
+    /// Load saved state + apply offline catch-up. Called once from init.
+    /// No-op on a fresh install (nothing to load).
+    private func loadAndResume() {
+        guard let elapsed = saveManager.load(into: state) else { return }
+        let beforeWater = state.water
+        let beforeMilk  = state.milk
+        let beforeCoins = state.dogCoins
+        saveManager.applyOfflineCatchUp(elapsed: elapsed, to: state)
+        // Snapshot deltas for the welcome-back card.
+        offlineSummary = OfflineSummary(
+            elapsed: elapsed,
+            waterGained: max(0, state.water - beforeWater),
+            milkGained:  max(0, state.milk - beforeMilk),
+            coinsGained: max(0, state.dogCoins - beforeCoins)
+        )
+        // Rebuild grid occupancy (persistence only stores building models —
+        // the grid is derived). Event replay isn't needed here: `GameScene`
+        // reconciles against `state.buildings` / `state.troops` once its
+        // `didMove(to:)` runs (see `syncFromLoadedState`).
+        grid.clear()
+        for b in state.buildings {
+            grid.occupy(col: b.col, row: b.row,
+                        width: b.def.tileWidth, height: b.def.tileHeight,
+                        buildingId: b.id)
+        }
+    }
+
+    /// Persist current state to disk. Safe to call from any thread.
+    func saveNow() {
+        saveManager.save(state: state)
+    }
+
+    /// Kick off a background auto-save every 30 seconds so unexpected
+    /// terminations lose at most half a minute of progress.
+    private func startAutoSaveLoop() {
+        autoSaveTask?.cancel()
+        autoSaveTask = Task.detached { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 30 * 1_000_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run { self?.saveNow() }
+            }
+        }
+    }
+
+    func dismissOfflineSummary() { offlineSummary = nil }
 
     private func presentLevelUp(newLevel: Int) {
         let unlockedBuildings = BuildingConfig.definitions.values
@@ -266,9 +331,12 @@ final class GameCoordinator {
 
     // MARK: - Wave controls
 
-    /// Public entry point for the "Start Wave" button. Validates
-    /// preconditions and surfaces a guidance card instead of silently doing
-    /// nothing when the player is missing a prerequisite.
+    /// Public entry point for the "Start Wave" / "Start Now" button. Waves
+    /// also auto-fire via `WaveSystem` when `autoWaveTimeRemaining` hits 0;
+    /// this path just lets the player skip the timer.
+    ///
+    /// Validates preconditions and surfaces a guidance card when the player
+    /// is missing a prerequisite.
     func requestStartWave() {
         guard state.phase == .building else { return }
         guard let hq = state.hq else {
@@ -279,20 +347,21 @@ final class GameCoordinator {
             guidanceMessage = .hqStillBuilding
             return
         }
-        if !state.hasAtLeastOneTroop {
+        if !state.hasAtLeastOneCombatTroop {
             guidanceMessage = .needTroops
             return
         }
-        waveSystem.enterPreBattle()
-        // Auto-select the first deployed troop so the player can immediately
-        // tap a tile to propose a move (no "mystery first tap" friction).
-        state.selectedTroopId = state.troops.first(where: {
-            !$0.isDead && $0.state != .garrisoned
-        })?.id
-        pendingTroopMove = nil
+        waveSystem.startWaveNow()
     }
 
-    /// Legacy callable used by some panels — same as `requestStartWave` now.
+    /// Toggle the auto-wave timer on/off. Paused state persists to disk.
+    func toggleAutoWaves() {
+        state.autoWaveEnabled.toggle()
+        saveNow()
+    }
+
+    /// Legacy preBattle entry — kept for any panel that still calls it but
+    /// just routes to the immediate start now that the phase is idle-first.
     func startPreBattle() { requestStartWave() }
     func cancelPreBattle() { waveSystem.cancelPreBattle() }
     func deployBattle()   { waveSystem.deploy() }
@@ -352,16 +421,52 @@ final class GameCoordinator {
                 setPlacementCandidate(col: col, row: row)
                 return
             }
+            // Idle/auto-battler: troops live on the battlefield year-round,
+            // so the same repositioning flow that used to be gated to
+            // `.preBattle` now runs during the idle `.building` phase too.
+            // A tap on a building still opens the building panel (priority:
+            // building over troop, so the store/info flow isn't accidentally
+            // broken by a troop standing on a tile).
             if let id = grid.buildingId(at: col, row: row) {
                 selectBuilding(id: id)
-            } else {
-                deselect()
+                state.selectedTroopId = nil
+                pendingTroopMove = nil
+                return
             }
+            deselect()
+            handleIdleTroopTap(col: col, row: row)
         case .preBattle:
             handlePreBattleTap(col: col, row: row)
         case .battle, .waveComplete, .waveFailed:
             break
         }
+    }
+
+    /// Idle-phase tap: same semantics as the old preBattle handler —
+    /// tap a troop to select, tap a tile to propose a move. Collectors are
+    /// also movable.
+    private func handleIdleTroopTap(col: Int, row: Int) {
+        let tapCx = Double(col) + 0.5
+        let tapCy = Double(row) + 0.5
+        let living = state.troops.enumerated().filter { _, t in !t.isDead }
+        let nearest = living.min { a, b in
+            hypot(a.element.col - tapCx, a.element.row - tapCy) <
+            hypot(b.element.col - tapCx, b.element.row - tapCy)
+        }
+        if let hit = nearest,
+           hypot(hit.element.col - tapCx, hit.element.row - tapCy) <= 1.2 {
+            state.selectedTroopId = hit.element.id
+            pendingTroopMove = nil
+            return
+        }
+        if state.selectedTroopId == nil {
+            state.selectedTroopId = living.first?.element.id
+        }
+        guard state.selectedTroopId != nil else {
+            pendingTroopMove = nil
+            return
+        }
+        pendingTroopMove = TilePos(col: col, row: row)
     }
 
     /// Pre-battle: tap a troop to select, tap a tile to *propose* a move
@@ -423,6 +528,29 @@ final class GameCoordinator {
     }
 
     func cancelPendingMove() { pendingTroopMove = nil }
+}
+
+/// Summary of progression applied during offline catch-up. Shown once, on
+/// the first foreground frame after a save was loaded.
+struct OfflineSummary: Equatable {
+    let elapsed: TimeInterval
+    let waterGained: Int
+    let milkGained: Int
+    let coinsGained: Int
+
+    /// Human-readable elapsed time, e.g. "2h 14m".
+    var elapsedLabel: String {
+        let total = Int(elapsed)
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        if hours > 0 { return "\(hours)h \(minutes)m" }
+        if minutes > 0 { return "\(minutes)m" }
+        return "<1m"
+    }
+
+    var isEmpty: Bool {
+        waterGained == 0 && milkGained == 0 && coinsGained == 0
+    }
 }
 
 struct LevelUpInfo: Equatable {

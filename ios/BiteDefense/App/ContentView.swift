@@ -2,7 +2,9 @@ import SwiftUI
 import SpriteKit
 
 struct ContentView: View {
-    @State private var coordinator = GameCoordinator()
+    /// Owned by `BiteDefenseApp` so scene-phase hooks (save on background)
+    /// can reach it. Passed in via init.
+    @Bindable var coordinator: GameCoordinator
     @State private var scene: GameScene = {
         let scene = GameScene(size: UIScreen.main.bounds.size)
         scene.scaleMode = .resizeFill
@@ -82,6 +84,18 @@ struct ContentView: View {
                 }
                 .transition(.scale.combined(with: .opacity))
             }
+
+            // Welcome-back card — shown once per cold launch when offline
+            // catch-up applied any progress. Sits above every other overlay
+            // so it's the first thing the player sees.
+            if let summary = coordinator.offlineSummary {
+                Color.black.opacity(0.7)
+                    .ignoresSafeArea()
+                OfflineSummaryCard(summary: summary) {
+                    coordinator.dismissOfflineSummary()
+                }
+                .transition(.scale.combined(with: .opacity))
+            }
         }
         .animation(.easeInOut(duration: 0.25), value: coordinator.infoCardVisible)
         .animation(.easeInOut(duration: 0.25), value: coordinator.guidanceMessage)
@@ -133,5 +147,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
+    ContentView(coordinator: GameCoordinator())
 }

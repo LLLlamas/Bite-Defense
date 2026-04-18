@@ -10,34 +10,84 @@ struct HUDView: View {
     /// — tapping a different chip swaps it.
     @State private var openChip: ChipKind? = nil
 
-    enum ChipKind: Hashable { case water, milk, dogCoins, bones, level }
+    enum ChipKind: Hashable { case water, milk, dogCoins, bones, level, waveTimer }
 
     private let chipHeight: CGFloat = 26
 
     var body: some View {
-        HStack(spacing: 6) {
-            cappedChip(.water,
-                       value: coordinator.state.water,
-                       cap: coordinator.state.storageCap,
-                       kind: .water)
-            cappedChip(.milk,
-                       value: coordinator.state.milk,
-                       cap: coordinator.state.storageCap,
-                       kind: .milk)
-            flatChip(kind: .dogCoins,
-                     emoji: ResourceKind.dogCoins.emoji,
-                     text: "\(coordinator.state.dogCoins)")
-            flatChip(kind: .bones,
-                     emoji: "🦴",
-                     text: coordinator.state.adminMode ? "∞" : "\(coordinator.state.premiumBones)",
-                     tint: .purple.opacity(0.45))
-            Spacer(minLength: 4)
-            levelChip
+        VStack(spacing: 4) {
+            HStack(spacing: 6) {
+                cappedChip(.water,
+                           value: coordinator.state.water,
+                           cap: coordinator.state.storageCap,
+                           kind: .water)
+                cappedChip(.milk,
+                           value: coordinator.state.milk,
+                           cap: coordinator.state.storageCap,
+                           kind: .milk)
+                flatChip(kind: .dogCoins,
+                         icon: AnyView(DogCoinIcon(size: 14)),
+                         text: "\(coordinator.state.dogCoins)")
+                flatChip(kind: .bones,
+                         icon: AnyView(BoneIcon(size: 14, premium: true)),
+                         text: coordinator.state.adminMode ? "∞" : "\(coordinator.state.premiumBones)",
+                         tint: .purple.opacity(0.45))
+                Spacer(minLength: 4)
+                levelChip
+            }
+            waveTimerRow
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity)
         .background(.black.opacity(0.72))
+    }
+
+    /// Thin second row showing the auto-wave countdown + a pause toggle.
+    /// During an active battle we hide the timer — it resets on wave end.
+    @ViewBuilder
+    private var waveTimerRow: some View {
+        if coordinator.state.phase == .building {
+            HStack(spacing: 8) {
+                Image(systemName: coordinator.state.autoWaveEnabled
+                      ? "hourglass.bottomhalf.filled"
+                      : "pause.circle.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(coordinator.state.autoWaveEnabled ? .orange : .gray)
+                Text(waveTimerText)
+                    .font(.system(size: 10, design: .monospaced).weight(.bold))
+                    .foregroundStyle(.white.opacity(0.85))
+                Spacer()
+                Button {
+                    coordinator.toggleAutoWaves()
+                } label: {
+                    Text(coordinator.state.autoWaveEnabled ? "Auto ON" : "Auto OFF")
+                        .font(.system(size: 9, design: .rounded).weight(.bold))
+                        .padding(.horizontal, 7)
+                        .frame(height: 16)
+                        .background(coordinator.state.autoWaveEnabled
+                                    ? Color.orange.opacity(0.7)
+                                    : Color.gray.opacity(0.6),
+                                    in: Capsule())
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+
+    private var waveTimerText: String {
+        let t = max(0, coordinator.state.autoWaveTimeRemaining)
+        let total = Int(t.rounded(.up))
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        let s = total % 60
+        if !coordinator.state.autoWaveEnabled { return "Auto-waves paused" }
+        if !coordinator.state.hasReadyHQ { return "Waiting for HQ…" }
+        if h > 0 { return String(format: "Next wave in %dh %02dm", h, m) }
+        if m > 0 { return String(format: "Next wave in %dm %02ds", m, s) }
+        return String(format: "Next wave in %ds", s)
     }
 
     // MARK: - Chips
@@ -51,7 +101,7 @@ struct HUDView: View {
         } label: {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 3) {
-                    Text(kind.emoji).font(.system(size: 13))
+                    kind.icon(size: 14)
                     Text("\(value)")
                         .font(.system(size: 11, design: .monospaced).weight(.bold))
                         .foregroundStyle(full ? .yellow : .white)
@@ -82,13 +132,13 @@ struct HUDView: View {
         }
     }
 
-    private func flatChip(kind: ChipKind, emoji: String, text: String,
+    private func flatChip(kind: ChipKind, icon: AnyView, text: String,
                           tint: Color = .black.opacity(0.55)) -> some View {
         Button {
             toggle(kind)
         } label: {
             HStack(spacing: 3) {
-                Text(emoji).font(.system(size: 13))
+                icon
                 Text(text)
                     .font(.system(size: 11, design: .monospaced).weight(.bold))
                     .foregroundStyle(.white)
@@ -145,7 +195,7 @@ struct HUDView: View {
         let headroom = max(0, cap - value)
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Text(kind.emoji)
+                kind.icon(size: 18)
                 Text(kind.label).font(.headline)
             }
             Text("\(value) / \(cap) — \(Int((fullPct * 100).rounded()))% full")
@@ -174,7 +224,7 @@ struct HUDView: View {
         case .dogCoins:
             return AnyView(VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
-                    Text(ResourceKind.dogCoins.emoji)
+                    DogCoinIcon(size: 18)
                     Text("Dog Coins").font(.headline)
                 }
                 Text("\(coordinator.state.dogCoins) coins")
@@ -188,7 +238,7 @@ struct HUDView: View {
         case .bones:
             return AnyView(VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
-                    Text("🦴")
+                    BoneIcon(size: 18, premium: true)
                     Text("Premium Bones").font(.headline)
                 }
                 Text(coordinator.state.adminMode

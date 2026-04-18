@@ -49,7 +49,9 @@ final class TrainingSystemTests: XCTestCase {
         let troop = state.troops[0]
         XCTAssertEqual(troop.type, .soldier)
         XCTAssertEqual(troop.level, 1)
-        XCTAssertEqual(troop.state, .garrisoned)
+        // Idle/auto-battler model: trained troops spawn already on the
+        // battlefield (`.idle`) instead of inside the Fort.
+        XCTAssertEqual(troop.state, .idle)
         XCTAssertEqual(troop.fortId, fortId)
         XCTAssertEqual(state.playerXP, xpBefore + 5)
         XCTAssertEqual(state.dogCoins, coinsBefore + 1)

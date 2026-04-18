@@ -1,13 +1,19 @@
 import CoreGraphics
 
 enum TroopType: String, CaseIterable, Codable, Hashable {
-    case soldier = "SOLDIER"
-    case archer  = "ARCHER"
+    case soldier   = "SOLDIER"
+    case archer    = "ARCHER"
+    /// Non-combat idle-game unit. Passively collects resources from nearby
+    /// water/milk buildings. Doesn't engage enemies, retreats when a wave
+    /// starts. Unlocks at player level 2.
+    case collector = "COLLECTOR"
 }
 
 enum TroopCategory: String, Codable, Hashable {
     case melee
     case ranged
+    /// Non-combat resource harvester. Skipped by `CombatSystem`.
+    case utility
 }
 
 /// Static design data per troop type. Direct port of `TroopConfig.js`.
@@ -85,10 +91,33 @@ enum TroopConfig {
             trainCost:   [35, 70, 125, 215, 360],
             trainResource: .water,
             feedWater: 3, feedMilk: 0, maxLevel: 5, unlockLevel: 3
+        ),
+        .collector: TroopDef(
+            type: .collector, displayName: "Collector Dog", category: .utility,
+            emoji: "🐾", description: "Idle harvester. Adds passive water + milk income while placed on the map.",
+            color: SKColorRGB(r: 0xf4, g: 0xc8, b: 0x74),
+            hp:          [30, 40, 55, 75, 100],
+            damage:      [0, 0, 0, 0, 0],
+            speed:       [0.8, 0.9, 1.0, 1.1, 1.2],
+            range:       [0, 0, 0, 0, 0],
+            attackSpeed: [1, 1, 1, 1, 1],
+            trainTime:   [20, 40, 80, 160, 300],
+            trainCost:   [60, 140, 300, 640, 1400],
+            trainResource: .dogCoins,
+            feedWater: 1, feedMilk: 1, maxLevel: 5, unlockLevel: 2
         )
     ]
 
     static func def(for type: TroopType) -> TroopDef { definitions[type]! }
 
-    static let order: [TroopType] = [.soldier, .archer]
+    static let order: [TroopType] = [.soldier, .archer, .collector]
+
+    /// Bonus per-minute generation rate contributed by a collector troop at
+    /// the given level. Applies to BOTH water and milk (flat bonus — not
+    /// per-building). A level-1 collector adds 2 water/min + 2 milk/min.
+    static func collectorBonusPerMinute(level: Int) -> Int {
+        let arr = [2, 4, 7, 11, 16]
+        let i = min(max(level - 1, 0), arr.count - 1)
+        return arr[i]
+    }
 }

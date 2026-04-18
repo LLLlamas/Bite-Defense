@@ -1,7 +1,18 @@
 import Foundation
 
-/// Wave lifecycle + enemy spawning. Direct port of `WaveSystem.js`.
-/// Phase machine: building → preBattle → battle → waveComplete/waveFailed → building.
+/// Wave lifecycle + enemy spawning. In the idle/auto-battler model:
+///
+/// • Troops are always on the battlefield (there is no `.garrisoned` deploy
+///   dance — trained troops spawn already in `.idle` state near a Fort).
+/// • The `.building` phase doubles as an "idle" phase — player places /
+///   upgrades / moves buildings and troops; waves tick down in the background.
+/// • `autoWaveTimeRemaining` counts down while phase == `.building` (and is
+///   also decremented during offline catch-up). At zero, we auto-start a wave.
+/// • The phase machine stays `building → battle → waveComplete/Failed →
+///   building`. `preBattle` is preserved as an optional "inspect before fight"
+///   mode but the auto-path skips it. `enterPreBattle()` is still callable
+///   from the "Start Wave" button so the player can reposition before a
+///   manual run.
 final class WaveSystem {
     private unowned let state: GameState
 
@@ -15,22 +26,18 @@ final class WaveSystem {
 
     // MARK: - Phase transitions
 
+    /// Manually open the positioning UI before starting a wave. Optional —
+    /// the auto-wave flow skips this and goes straight to `.battle`.
     func enterPreBattle() {
         guard state.phase == .building else { return }
-        // HQ must exist AND be finished building.
         guard state.hasReadyHQ else { return }
         state.phase = .preBattle
-
-        // Pick a random corner.
         state.waveCorner = Int.random(in: 0...3)
-
-        deployGarrisonedTroops()
         EventBus.shared.send(.phaseChanged(phase: .preBattle))
     }
 
     func cancelPreBattle() {
         guard state.phase == .preBattle else { return }
-        garrisonAllTroops()
         state.phase = .building
         state.waveCorner = nil
         EventBus.shared.send(.phaseChanged(phase: .building))
@@ -39,48 +46,95 @@ final class WaveSystem {
     /// Begin BATTLE — spawn timer starts, enemies begin spawning.
     func deploy() {
         guard state.phase == .preBattle else { return }
+        graduateGarrisonedTroops()
         state.phase = .battle
         startWave()
         EventBus.shared.send(.phaseChanged(phase: .battle))
     }
 
-    /// Player retreats to base without waiting for a wave to finish. Only
-    /// callable from the result cards.
+    /// Auto-start a wave from `.building` — no pre-battle reposition step.
+    /// Used by the auto-wave timer and the new "Start Now" button.
+    func startWaveNow() {
+        guard state.phase == .building else { return }
+        guard state.hasReadyHQ else {
+            // No HQ yet — hold off and retry next tick. Gives the player
+            // a clear signal in the UI (wave timer stuck at 0) without
+            // silently consuming the trigger.
+            return
+        }
+        graduateGarrisonedTroops()
+        state.waveCorner = Int.random(in: 0...3)
+        state.phase = .battle
+        startWave()
+        EventBus.shared.send(.phaseChanged(phase: .battle))
+    }
+
+    /// Migrate any legacy `.garrisoned` troops (from older saves or tests) to
+    /// `.idle` at the Fort so they actually participate in the wave. Idle-mode
+    /// troops live on the battlefield year-round, so this only fires on the
+    /// first wave after a legacy-save load.
+    private func graduateGarrisonedTroops() {
+        for i in state.troops.indices {
+            guard state.troops[i].state == .garrisoned else { continue }
+            let fort = state.buildings.first { $0.type == .fort && $0.id == state.troops[i].fortId }
+                ?? state.buildings.first { $0.type == .fort }
+            if let anchor = fort {
+                let jx = Double.random(in: -0.75...0.75)
+                let jy = Double.random(in: 0...0.8)
+                state.troops[i].col = Double(anchor.col) + Double(anchor.def.tileWidth) / 2 + jx
+                state.troops[i].row = Double(anchor.row) + Double(anchor.def.tileHeight) + 0.5 + jy
+            }
+            state.troops[i].state = .idle
+            state.troops[i].attackCooldown = 0
+            EventBus.shared.send(.troopDeployed(troopId: state.troops[i].id))
+        }
+    }
+
+    /// Player retreats after a wave result. Troops stay where they are
+    /// (we're idle/auto-battler now, not "return to garrison").
     func goHome() {
         state.waveStreak = 0
-        // Wave number only advances during an active streak — going home
-        // resets it so the next "Start Wave" begins fresh at wave 1.
         state.currentWave = 0
-        garrisonAllTroops()
         state.enemies.removeAll()
         pending.removeAll()
         state.phase = .building
         state.waveCorner = nil
+        resetAutoWaveTimer()
         EventBus.shared.send(.phaseChanged(phase: .building))
     }
 
     // MARK: - Per-frame
 
     func update(dt: Double) {
-        guard state.phase == .battle else { return }
-        spawnTimer += dt
+        switch state.phase {
+        case .building:
+            tickAutoWaveTimer(dt: dt)
+            return
+        case .preBattle, .waveComplete, .waveFailed:
+            return
+        case .battle:
+            break
+        }
 
+        spawnTimer += dt
         while let first = pending.first, spawnTimer >= first.spawnDelay {
             pending.removeFirst()
             spawnEnemy(first)
         }
 
-        // Failure: HQ destroyed, all troops dead while enemies remain, OR
-        // every owned building sits below half HP (cats have "won the siege").
+        // Failure: HQ destroyed, all combat troops dead while enemies remain,
+        // OR every owned building sits below half HP.
         let hqAlive = (state.hq?.hp ?? 0) > 0
-        let troopsAlive = state.troops.contains { !$0.isDead && $0.state != .garrisoned }
+        let combatTroopsAlive = state.troops.contains {
+            !$0.isDead && $0.def.category != .utility
+        }
         let enemiesRemaining = !state.enemies.isEmpty || !pending.isEmpty
 
         if !hqAlive {
             failWave()
             return
         }
-        if !troopsAlive && enemiesRemaining {
+        if !combatTroopsAlive && enemiesRemaining {
             failWave()
             return
         }
@@ -95,11 +149,35 @@ final class WaveSystem {
         }
     }
 
+    // MARK: - Auto-wave timer
+
+    private func tickAutoWaveTimer(dt: Double) {
+        guard state.autoWaveEnabled else { return }
+        guard state.hasReadyHQ else {
+            // Don't count down while the HQ is missing / still constructing.
+            return
+        }
+        if state.autoWaveTimeRemaining <= 0 {
+            state.autoWaveTimeRemaining = state.autoWaveIntervalSeconds
+        }
+        state.autoWaveTimeRemaining = max(0, state.autoWaveTimeRemaining - dt)
+        if state.autoWaveTimeRemaining <= 0 {
+            startWaveNow()
+        }
+    }
+
+    /// Reset the auto-wave cadence. Called after a wave resolves (win or
+    /// loss) and on "Go Home".
+    func resetAutoWaveTimer() {
+        state.autoWaveTimeRemaining = state.autoWaveIntervalSeconds
+    }
+
     // MARK: - Helpers
 
     private func startWave() {
         state.currentWave += 1
-        let seed: UInt64 = UInt64(max(1, state.currentWave)) &* 1103515245 &+ UInt64(max(0, state.selectedDifficulty) * 31)
+        let seed: UInt64 = UInt64(max(1, state.currentWave)) &* 1103515245
+            &+ UInt64(max(0, state.selectedDifficulty) * 31)
         var rng = SplitMix64(seed: seed)
         let data = WaveConfig.generate(waveNumber: state.currentWave,
                                         difficulty: state.selectedDifficulty,
@@ -148,9 +226,9 @@ final class WaveSystem {
         state.add(reward.dogCoins, to: .dogCoins)
         state.addXP(reward.xp)
 
-        // Feed troops.
+        // Feed combat troops (collectors don't eat wave-scale rations).
         var waterFeed = 0, milkFeed = 0
-        for t in state.troops where !t.isDead {
+        for t in state.troops where !t.isDead && t.def.category != .utility {
             let d = t.def
             waterFeed += d.feedWater * t.level
             milkFeed  += d.feedMilk  * t.level
@@ -167,7 +245,10 @@ final class WaveSystem {
             state.maxDifficultyUnlocked = min(5, state.selectedDifficulty + 1)
         }
 
-        garrisonAllTroops()
+        // Troops stay where they fought — no more "garrison everyone". Clear
+        // dead ones only.
+        state.troops.removeAll { $0.isDead }
+        resetAutoWaveTimer()
         state.phase = .waveComplete
         waveData = nil
         EventBus.shared.send(.waveComplete(reward: reward))
@@ -189,7 +270,8 @@ final class WaveSystem {
         pending.removeAll()
         state.waveStreak = 0
         state.currentWave = 0
-        garrisonAllTroops()
+        state.troops.removeAll { $0.isDead }
+        resetAutoWaveTimer()
 
         state.lastWaveFailInfo = (waterStolen, milkStolen)
         state.lastWaveReward = nil
@@ -200,58 +282,11 @@ final class WaveSystem {
         EventBus.shared.send(.phaseChanged(phase: .waveFailed))
     }
 
-    /// True when every building the player owns is below 50% HP. With no
-    /// buildings at all this returns `false` (the HQ-destroyed check above
-    /// already covers the "no HQ" case).
+    /// True when every building the player owns is below 50% HP.
     private func allBuildingsBelowHalfHP() -> Bool {
         let owned = state.buildings.filter { $0.maxHP > 0 }
         guard !owned.isEmpty else { return false }
         return owned.allSatisfy { Double($0.hp) < Double($0.maxHP) * 0.5 }
-    }
-
-    // MARK: - Troop deploy / garrison
-
-    private func deployGarrisonedTroops() {
-        for i in state.troops.indices {
-            guard state.troops[i].state == .garrisoned else { continue }
-            let fort = state.buildings.first { $0.type == .fort && $0.id == state.troops[i].fortId }
-                ?? state.buildings.first { $0.type == .fort }
-            guard let anchor = fort else { continue }
-            let cfg = anchor.def
-            let jx = Double.random(in: -0.75...0.75)
-            let jy = Double.random(in: 0...0.8)
-            state.troops[i].col = Double(anchor.col) + Double(cfg.tileWidth) / 2 + jx
-            state.troops[i].row = Double(anchor.row) + Double(cfg.tileHeight) + 0.5 + jy
-            state.troops[i].state = .idle
-            state.troops[i].attackCooldown = 0
-            EventBus.shared.send(.troopDeployed(troopId: state.troops[i].id))
-        }
-    }
-
-    private func garrisonAllTroops() {
-        for i in state.troops.indices {
-            guard !state.troops[i].isDead else { continue }
-            let fort = nearestFort(to: state.troops[i])
-            if let f = fort {
-                state.troops[i].col = Double(f.col) + Double(f.def.tileWidth) / 2
-                state.troops[i].row = Double(f.row) + Double(f.def.tileHeight) / 2
-                state.troops[i].fortId = f.id
-            }
-            state.troops[i].state = .garrisoned
-            state.troops[i].attackCooldown = 0
-        }
-        // Drop dead ones from the list.
-        state.troops.removeAll(where: { $0.isDead })
-    }
-
-    private func nearestFort(to troop: TroopModel) -> BuildingModel? {
-        state.buildings.filter { $0.type == .fort }
-            .min(by: {
-                hypot(Double($0.col) + Double($0.def.tileWidth)/2 - troop.col,
-                      Double($0.row) + Double($0.def.tileHeight)/2 - troop.row)
-                < hypot(Double($1.col) + Double($1.def.tileWidth)/2 - troop.col,
-                        Double($1.row) + Double($1.def.tileHeight)/2 - troop.row)
-            })
     }
 
     // MARK: - Result card dismissal

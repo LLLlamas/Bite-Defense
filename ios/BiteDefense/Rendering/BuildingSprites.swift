@@ -29,20 +29,23 @@ enum BuildingSprites {
         fmt.scale = max(UIScreen.main.scale, 2)  // crisp on 2x/3x, baked once
         let renderer = UIGraphicsImageRenderer(size: size, format: fmt)
         let image = renderer.image { ctx in
-            let cg = ctx.cgContext
-            switch type {
-            case .dogHQ:        drawDogHQ(cg, size: size)
-            case .trainingCamp: drawTrainingCamp(cg, size: size)
-            case .fort:         drawFort(cg, size: size)
-            case .wall:         drawWall(cg, size: size)
-            case .waterWell:    drawWaterWell(cg, size: size)
-            case .milkFarm:     drawMilkFarm(cg, size: size)
-            case .archerTower:  drawArcherTower(cg, size: size)
-            }
+            dispatch(type: type, in: ctx.cgContext, size: size)
         }
         let texture = SKTexture(image: image)
         texture.filteringMode = .linear
         return texture
+    }
+
+    fileprivate static func dispatch(type: BuildingType, in cg: CGContext, size: CGSize) {
+        switch type {
+        case .dogHQ:        drawDogHQ(cg, size: size)
+        case .trainingCamp: drawTrainingCamp(cg, size: size)
+        case .fort:         drawFort(cg, size: size)
+        case .wall:         drawWall(cg, size: size)
+        case .waterWell:    drawWaterWell(cg, size: size)
+        case .milkFarm:     drawMilkFarm(cg, size: size)
+        case .archerTower:  drawArcherTower(cg, size: size)
+        }
     }
 
     // MARK: - Palette (matches sprites.jsx)
@@ -398,5 +401,13 @@ enum BuildingSprites {
         cg.setStrokeColor(stroke.cgColor)
         cg.setLineWidth(line)
         cg.strokeEllipse(in: rect)
+    }
+}
+
+/// Public facade so the Store thumbnail (a `UIImage`, not an `SKTexture`)
+/// can reuse the same drawing code without duplicating every path.
+enum BuildingSpritesPublicAPI {
+    static func draw(type: BuildingType, in cg: CGContext, size: CGSize) {
+        BuildingSprites.dispatch(type: type, in: cg, size: size)
     }
 }

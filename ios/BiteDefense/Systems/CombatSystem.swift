@@ -30,7 +30,8 @@ final class CombatSystem {
     private func updateTroops(dt: Double) {
         for i in state.troops.indices {
             guard !state.troops[i].isDead,
-                  state.troops[i].state != .garrisoned else { continue }
+                  state.troops[i].state != .garrisoned,
+                  state.troops[i].def.category != .utility else { continue }
 
             let t = state.troops[i]
             let range = t.def.range(level: t.level)
@@ -182,7 +183,11 @@ final class CombatSystem {
         var best: (idx: Int, dist: Double)? = nil
         for j in state.troops.indices {
             let t = state.troops[j]
-            guard !t.isDead, t.state != .garrisoned else { continue }
+            // Skip dead troops, legacy garrisoned state, and utility troops
+            // (collectors are non-combatants — enemies ignore them).
+            guard !t.isDead,
+                  t.state != .garrisoned,
+                  t.def.category != .utility else { continue }
             let d = hypot(t.col - ex, t.row - ey)
             if d < (best?.dist ?? .infinity) {
                 best = (j, d)
@@ -238,6 +243,8 @@ final class CombatSystem {
         bodies.reserveCapacity(state.troops.count + state.enemies.count)
         for i in state.troops.indices where !state.troops[i].isDead
                                        && state.troops[i].state != .garrisoned {
+            // Include utility troops in separation (they still occupy space)
+            // even though combat skips them.
             bodies.append(Body(isTroop: true, idx: i,
                                col: state.troops[i].col, row: state.troops[i].row))
         }

@@ -265,10 +265,16 @@ struct TrainingPanel: View {
     }
 
     /// Shows a "+N 🦴 → Top up" button that converts premium bones into enough
-    /// of this troop's specific training resource to afford training.
+    /// of this troop's specific training resource to afford training. Now
+    /// covers coins too, for the idle Collector Dog (pays in dog coins).
     @ViewBuilder
     private func topOffButton(cost: Int, resource: ResourceKind) -> some View {
-        let have = resource == .water ? coordinator.state.water : coordinator.state.milk
+        let have: Int
+        switch resource {
+        case .water:    have = coordinator.state.water
+        case .milk:     have = coordinator.state.milk
+        case .dogCoins: have = coordinator.state.dogCoins
+        }
         let short = max(0, cost - have)
         let bones = coordinator.state.bonesToCover(shortfall: short, resource: resource)
         let canAffordBones = coordinator.state.canAffordPremium(bones)
@@ -276,8 +282,8 @@ struct TrainingPanel: View {
             _ = coordinator.state.topUpShortfall(needed: cost, resource: resource)
         } label: {
             HStack(spacing: 3) {
-                Image(systemName: "bolt.fill").font(.caption2)
-                Text("Top up \(bones)🦴")
+                BoneIcon(size: 10, premium: true)
+                Text("Top up \(bones)")
                     .font(.system(size: 9, design: .monospaced).bold())
             }
             .foregroundStyle(.white)

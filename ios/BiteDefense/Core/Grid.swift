@@ -51,4 +51,9 @@ final class Grid {
         guard inBounds(col: col, row: row) else { return nil }
         return occupancy[row][col]
     }
+
+    /// Wipe all occupancy. Called during save-load to rebuild from models.
+    func clear() {
+        occupancy = Array(repeating: Array(repeating: nil, count: cols), count: rows)
+    }
 }

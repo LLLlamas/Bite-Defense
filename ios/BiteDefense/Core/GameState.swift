@@ -53,6 +53,30 @@ final class GameState {
     var selectedDifficulty: Int = 2
     var maxDifficultyUnlocked: Int = 1
 
+    // MARK: - Idle cadence
+    /// Seconds remaining before the next wave auto-starts. Ticked by
+    /// `WaveSystem.update` during the `.building` (idle) phase. Counts across
+    /// app backgrounding via offline catch-up (see `SaveManager.applyOfflineCatchUp`).
+    var autoWaveTimeRemaining: Double = 0
+    /// When true, the auto-wave timer is paused (manual-only waves). Toggled
+    /// from the HUD. Saved to disk.
+    var autoWaveEnabled: Bool = true
+    /// Unix timestamp of the last successful save. `nil` on a fresh install —
+    /// first-launch offline catch-up is a no-op until we've written once.
+    var lastSavedAt: Date? = nil
+
+    /// Seconds between auto-waves at the current HQ level. Scales from 2h
+    /// (HQ L1) down to 1h (HQ L10). Player can still trigger a wave early
+    /// via the "Start Wave" button without waiting for the timer.
+    var autoWaveIntervalSeconds: Double {
+        // Linear interp: L1 → 7200s, L10 → 3600s.
+        let lv = min(max(hqLevel, 1), 10)
+        let start: Double = 7200
+        let end: Double = 3600
+        let t = Double(lv - 1) / 9.0
+        return start + (end - start) * t
+    }
+
     /// Transient UI: which troop is selected for moving (during PRE_BATTLE).
     var selectedTroopId: Int? = nil
     /// Last wave-complete / wave-failed summary for the result card.
@@ -76,6 +100,26 @@ final class GameState {
     func mintEnemyId() -> Int {
         defer { nextEnemyId += 1 }
         return nextEnemyId
+    }
+
+    // MARK: - Save/load hooks
+    //
+    // These intentionally live on `GameState` (rather than exposing the fields
+    // directly) so `SaveManager` can snapshot + restore without depending on
+    // private storage. Underscore-prefixed to signal "persistence use only."
+    func _nextBuildingIdValue() -> Int { nextBuildingId }
+    func _nextTroopIdValue()    -> Int { nextTroopId }
+    func _nextEnemyIdValue()    -> Int { nextEnemyId }
+
+    func _restoreMints(building: Int, troop: Int, enemy: Int) {
+        nextBuildingId = max(1, building)
+        nextTroopId    = max(1, troop)
+        nextEnemyId    = max(1, enemy)
+    }
+
+    func _setFractions(water: Double, milk: Double) {
+        waterFraction = max(0, water)
+        milkFraction  = max(0, milk)
     }
 
     // MARK: - Resource arithmetic
@@ -236,6 +280,12 @@ final class GameState {
     /// deployed). Drives wave-start gating.
     var hasAtLeastOneTroop: Bool {
         troops.contains { !$0.isDead }
+    }
+
+    /// True if at least one living COMBAT troop exists — collectors don't
+    /// count because they can't actually fight. Used to gate "Start Wave".
+    var hasAtLeastOneCombatTroop: Bool {
+        troops.contains { !$0.isDead && $0.def.category != .utility }
     }
 
     /// True if the player owns at least one Archer Tower (built or building).

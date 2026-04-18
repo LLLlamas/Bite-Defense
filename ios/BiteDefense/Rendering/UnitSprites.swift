@@ -20,8 +20,9 @@ enum UnitSprites {
         if let cached = troopCache[key] { return cached }
         let texture = bake { cg in
             switch type {
-            case .soldier: drawSoldierDog(cg, level: level)
-            case .archer:  drawArcherDog(cg, level: level)
+            case .soldier:   drawSoldierDog(cg, level: level)
+            case .archer:    drawArcherDog(cg, level: level)
+            case .collector: drawCollectorDog(cg, level: level)
             }
         }
         troopCache[key] = texture
@@ -297,6 +298,66 @@ enum UnitSprites {
                         control: CGPoint(x: r * 0.32, y: -r * 0.2))
         cg.strokePath()
         cg.restoreGState()
+    }
+
+    // MARK: - Collector Dog (idle-game utility troop)
+
+    /// Plush golden-retriever-ish collector with a satchel on one hip and a
+    /// paw-print badge on the chest. No weapon — it's a non-combat unit.
+    private static func drawCollectorDog(_ cg: CGContext, level: Int) {
+        // Level-scaled coat: lighter at L1, richer gold at higher levels.
+        let coats: [(UIColor, UIColor)] = [
+            (hex(0xf4c874), hex(0xb88a46)),
+            (hex(0xf0bd5a), hex(0xa7762f)),
+            (hex(0xe5a63c), hex(0x8a5c1c)),
+            (hex(0xcc8f34), hex(0x6e4c1b)),
+            (hex(0xb87824), hex(0x593910)),
+        ]
+        let idx = min(max(level - 1, 0), coats.count - 1)
+        let (fur, furDark) = coats[idx]
+        let satchel = hex(0x8a5a30)
+        let strap = hex(0x4a2d18)
+
+        // Ground shadow
+        fillEllipse(cg, cx: 0, cy: 30, rx: 18, ry: 4.5, color: UIColor(white: 0, alpha: 0.3))
+        // Back legs
+        fillEllipse(cg, cx: -7, cy: 20, rx: 5, ry: 7, color: furDark)
+        fillEllipse(cg, cx: 9, cy: 22, rx: 5, ry: 7, color: furDark)
+        // Wagging tail
+        strokeBezier(cg, color: furDark, width: 6,
+                     from: CGPoint(x: -14, y: 4),
+                     control: CGPoint(x: -22, y: -4),
+                     to: CGPoint(x: -18, y: -14))
+        strokeBezier(cg, color: fur, width: 3.3,
+                     from: CGPoint(x: -14, y: 4),
+                     control: CGPoint(x: -22, y: -4),
+                     to: CGPoint(x: -18, y: -14))
+        // Body
+        fillEllipse(cg, cx: 0, cy: 6, rx: 17, ry: 14, color: fur)
+        fillEllipse(cg, cx: 3, cy: 9, rx: 13, ry: 10,
+                    color: furDark.withAlphaComponent(0.3))
+        // Satchel on left hip
+        fillAndStrokeRect(cg, x: -13, y: 4, w: 10, h: 10,
+                          fill: satchel, stroke: strap, line: 1.4)
+        // Satchel strap across body
+        cg.setStrokeColor(strap.cgColor)
+        cg.setLineWidth(1.8)
+        cg.setLineCap(.round)
+        cg.move(to: CGPoint(x: -10, y: 4))
+        cg.addLine(to: CGPoint(x: 6, y: -4))
+        cg.strokePath()
+        // Paw-print badge on chest
+        fillEllipse(cg, cx: 3, cy: 6, rx: 3.5, ry: 3.5, color: hex(0xffd66a))
+        cg.setFillColor(strap.cgColor)
+        cg.fillEllipse(in: CGRect(x: 1.2, y: 6.8, width: 3.6, height: 2.6))
+        cg.fillEllipse(in: CGRect(x: 0.5, y: 4.0, width: 1.2, height: 1.2))
+        cg.fillEllipse(in: CGRect(x: 2.4, y: 3.2, width: 1.2, height: 1.2))
+        cg.fillEllipse(in: CGRect(x: 4.3, y: 4.0, width: 1.2, height: 1.2))
+        // Front legs
+        fillEllipse(cg, cx: -5, cy: 24, rx: 4, ry: 6, color: fur)
+        fillEllipse(cg, cx: 6, cy: 25, rx: 4, ry: 6, color: fur)
+        // Head — reuse the plush head primitive
+        drawPlushDogHead(cg, offsetX: 2, offsetY: -12, r: 13, fur: fur, furDark: furDark)
     }
 
     // MARK: - Basic Cat

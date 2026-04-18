@@ -106,26 +106,62 @@ struct PlacementConfirmTray: View {
 
     @ViewBuilder
     private func payActions(cost: Int, validTile: Bool) -> some View {
-        let canPay = validTile && coordinator.state.dogCoins >= cost
+        let state = coordinator.state
+        let canPay = validTile && state.dogCoins >= cost
+        let shortfall = max(0, cost - state.dogCoins)
+        let bonesNeeded = state.bonesToCover(shortfall: shortfall, resource: .dogCoins)
+        let canTopUp = validTile && shortfall > 0 && state.canAffordPremium(bonesNeeded)
 
-        HStack(spacing: 10) {
-            Button("Cancel") { coordinator.cancelPlacement() }
-                .buttonStyle(.bordered)
-                .tint(.gray)
-            Spacer()
-            Button {
-                confirm()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill")
-                    Text("Pay \(cost) 🪙")
-                        .font(.subheadline.monospacedDigit().bold())
+        VStack(spacing: 6) {
+            HStack(spacing: 10) {
+                Button("Cancel") { coordinator.cancelPlacement() }
+                    .buttonStyle(.bordered)
+                    .tint(.gray)
+                Spacer()
+                Button {
+                    confirm()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                        HStack(spacing: 3) {
+                            Text("Pay \(cost)")
+                                .font(.subheadline.monospacedDigit().bold())
+                            DogCoinIcon(size: 14)
+                        }
+                    }
                 }
+                .disabled(!canPay)
+                .buttonStyle(.borderedProminent)
+                .tint(.yellow)
             }
-            .disabled(!canPay)
-            .buttonStyle(.borderedProminent)
-            .tint(.yellow)
+            // Universal top-up: if the player is short on coins, show a
+            // bones-for-shortfall button covering the exact gap. Disabled if
+            // they don't have enough bones either.
+            if shortfall > 0 {
+                Button {
+                    topUpAndConfirm(cost: cost)
+                } label: {
+                    HStack(spacing: 6) {
+                        BoneIcon(size: 12, premium: true)
+                        Text("Top up \(shortfall) with \(bonesNeeded) bone\(bonesNeeded == 1 ? "" : "s")")
+                            .font(.caption.monospacedDigit().bold())
+                    }
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(Color.purple.opacity(0.75), in: Capsule())
+                    .foregroundStyle(.white)
+                    .opacity(canTopUp ? 1 : 0.4)
+                }
+                .disabled(!canTopUp)
+                .buttonStyle(.plain)
+            }
         }
+    }
+
+    /// Spend bones to cover the coin shortfall, then place. Safe no-op if
+    /// the bone spend fails (admin mode makes it free).
+    private func topUpAndConfirm(cost: Int) {
+        guard coordinator.state.topUpShortfall(needed: cost, resource: .dogCoins) else { return }
+        confirm()
     }
 
     private func confirm() {

@@ -1,8 +1,11 @@
 import Foundation
 
 /// Dog-troop training. Queue adds cost up-front, timer drains in `update`,
-/// completion spawns a `TroopModel` in the `.garrisoned` state.
-/// Mirrors `TrainingSystem.js` minus premium-speedup (not wired yet).
+/// completion spawns a `TroopModel` directly on the battlefield in the
+/// `.idle` state (idle/auto-battler model — no `garrison → deploy` dance).
+///
+/// Collector troops (`.collector`) share the same queue, pay in dog coins
+/// instead of water/milk, and never enter combat.
 final class TrainingSystem {
     private unowned let state: GameState
 
@@ -150,24 +153,32 @@ final class TrainingSystem {
     // MARK: - Helpers
 
     private func spawnGarrisonedTroop(type: TroopType, level: Int, nearCamp camp: BuildingModel) {
+        // Kept the method name for API compat with earlier callers; the troop
+        // actually spawns in `.idle` on the battlefield now.
         let fort = nearestFort(to: camp)
-        let id = state.mintTroopId()
-
         let anchor: BuildingModel = fort ?? camp
-        let col = Double(anchor.col) + Double(anchor.def.tileWidth) / 2.0
-        let row = Double(anchor.row) + Double(anchor.def.tileHeight) / 2.0
 
+        // Jittered deploy so a batch of trained troops doesn't stack exactly
+        // on the fort center. Matches the previous `deployGarrisonedTroops`
+        // placement pattern so visual feel stays consistent.
+        let jx = Double.random(in: -0.75...0.75)
+        let jy = Double.random(in: 0...0.8)
+        let col = Double(anchor.col) + Double(anchor.def.tileWidth) / 2.0 + jx
+        let row = Double(anchor.row) + Double(anchor.def.tileHeight) + 0.5 + jy
+
+        let id = state.mintTroopId()
         let hp = TroopConfig.def(for: type).hp(level: level)
         let troop = TroopModel(
             id: id, type: type, level: level,
             col: col, row: row,
             hp: hp, maxHP: hp,
-            state: .garrisoned,
+            state: .idle,
             fortId: fort?.id,
             attackCooldown: 0
         )
         state.troops.append(troop)
         EventBus.shared.send(.troopTrained(troopId: id, troopType: type, level: level))
+        EventBus.shared.send(.troopDeployed(troopId: id))
     }
 
     private func nearestFort(to camp: BuildingModel) -> BuildingModel? {
